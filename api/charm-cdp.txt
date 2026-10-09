@@ -445,6 +445,7 @@ impl charm::Launch
 pub fn charm::Launch::arg(self, arg: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn charm::Launch::args(&self, user_data_dir: &std::path::Path) -> alloc::vec::Vec<alloc::string::String>
 pub fn charm::Launch::headed(self) -> Self
+pub fn charm::Launch::installed() -> core::result::Result<Self, charm::Error>
 pub fn charm::Launch::new(exe: impl core::convert::Into<std::path::PathBuf>) -> Self
 pub fn charm::Launch::offscreen(self) -> Self
 pub fn charm::Launch::profile(self, dir: impl core::convert::Into<std::path::PathBuf>) -> Self
@@ -473,7 +474,6 @@ pub async fn charm::Locator<'a>::fill(&mut self, text: &str) -> core::result::Re
 pub fn charm::Locator<'a>::first(self) -> Self
 pub async fn charm::Locator<'a>::hover(&mut self) -> core::result::Result<(), charm::Error>
 pub fn charm::Locator<'a>::nth(self, index: usize) -> Self
-pub async fn charm::Locator<'a>::press_sequentially(&mut self, text: &str) -> core::result::Result<(), charm::Error>
 pub fn charm::Locator<'a>::selector(&self) -> &charm::Selector
 pub async fn charm::Locator<'a>::settle(&mut self) -> core::result::Result<charm::Actionable, charm::Error>
 pub async fn charm::Locator<'a>::try_click(&mut self) -> core::result::Result<charm::ClickResult, charm::Error>
@@ -537,6 +537,8 @@ pub struct charm::Session
 impl charm::Session
 pub async fn charm::Session::add_cookies(&mut self, cookies: alloc::vec::Vec<charm::Cookie>) -> core::result::Result<(), charm::Error>
 pub async fn charm::Session::clear_cookies(&mut self) -> core::result::Result<(), charm::Error>
+pub async fn charm::Session::cookie_named(&mut self, name: &str) -> core::result::Result<core::option::Option<charm::Cookie>, charm::Error>
+pub async fn charm::Session::cookies(&mut self) -> core::result::Result<alloc::vec::Vec<charm::Cookie>, charm::Error>
 pub async fn charm::Session::response_body(&mut self, response: &charm::ObservedResponse) -> core::result::Result<alloc::vec::Vec<u8>, charm::Error>
 pub async fn charm::Session::wait_for_request(&mut self, url: charm::UrlMatch) -> core::result::Result<charm::ObservedRequest, charm::Error>
 pub async fn charm::Session::wait_for_response(&mut self, url: charm::UrlMatch) -> core::result::Result<charm::ObservedResponse, charm::Error>
@@ -549,8 +551,6 @@ pub async fn charm::Session::url(&mut self) -> core::result::Result<alloc::strin
 pub async fn charm::Session::block_urls(&mut self, urls: &[alloc::string::String]) -> core::result::Result<(), charm::Error>
 pub async fn charm::Session::browser_send(&mut self, method: &str, params: serde_json::value::Value) -> core::result::Result<serde_json::value::Value, charm::Error>
 pub async fn charm::Session::close(self) -> core::result::Result<(), charm::Error>
-pub async fn charm::Session::cookie_named(&mut self, name: &str) -> core::result::Result<core::option::Option<serde_json::value::Value>, charm::Error>
-pub async fn charm::Session::cookies(&mut self) -> core::result::Result<serde_json::value::Value, charm::Error>
 pub async fn charm::Session::evaluate(&mut self, expression: &str) -> core::result::Result<serde_json::value::Value, charm::Error>
 pub fn charm::Session::exited(&mut self) -> bool
 pub async fn charm::Session::goto(&mut self, url: &str) -> core::result::Result<(), charm::Error>
@@ -559,7 +559,6 @@ pub async fn charm::Session::network_on(&mut self) -> core::result::Result<(), c
 pub async fn charm::Session::open(&mut self, url: &str) -> core::result::Result<(), charm::Error>
 pub async fn charm::Session::send(&mut self, method: &str, params: serde_json::value::Value) -> core::result::Result<serde_json::value::Value, charm::Error>
 pub fn charm::Session::sent(&self) -> &alloc::collections::btree::set::BTreeSet<alloc::string::String>
-pub async fn charm::Session::set_cookies(&mut self, cookies: serde_json::value::Value) -> core::result::Result<(), charm::Error>
 pub async fn charm::Session::take_events(&mut self) -> core::result::Result<alloc::vec::Vec<serde_json::value::Value>, charm::Error>
 pub async fn charm::Session::click(&mut self, selector: impl core::convert::Into<charm::Selector>) -> core::result::Result<(), charm::Error>
 pub async fn charm::Session::fill(&mut self, selector: impl core::convert::Into<charm::Selector>, text: &str) -> core::result::Result<(), charm::Error>

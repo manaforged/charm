@@ -14,6 +14,12 @@ pub struct Launch {
 }
 
 impl Launch {
+    pub fn installed() -> Result<Self, crate::Error> {
+        crate::resolve()
+            .map(Self::new)
+            .ok_or(crate::Error::MissingExe)
+    }
+
     #[must_use]
     pub fn new(exe: impl Into<PathBuf>) -> Self {
         Self {

@@ -249,12 +249,8 @@ impl<'a> Locator<'a> {
         Ok(())
     }
 
-    pub async fn press_sequentially(&mut self, text: &str) -> Result<(), Error> {
+    pub async fn type_text(&mut self, text: &str) -> Result<(), Error> {
         self.click().await?;
         self.session.type_chars(text).await
-    }
-
-    pub async fn type_text(&mut self, text: &str) -> Result<(), Error> {
-        self.press_sequentially(text).await
     }
 }

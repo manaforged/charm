@@ -15,38 +15,45 @@ fn env_file(key: &str) -> Option<PathBuf> {
     path.is_file().then_some(path)
 }
 
+const MACOS: [&str; 5] = [
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "/Applications/Chromium.app/Contents/MacOS/Chromium",
+    "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+    "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+    "/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary",
+];
+
+const WINDOWS_ROOTS: [&str; 3] = ["LOCALAPPDATA", "PROGRAMFILES", "PROGRAMFILES(X86)"];
+
+const WINDOWS: [&str; 4] = [
+    "Google/Chrome/Application/chrome.exe",
+    "Chromium/Application/chrome.exe",
+    "Microsoft/Edge/Application/msedge.exe",
+    "BraveSoftware/Brave-Browser/Application/brave.exe",
+];
+
+const LINUX: [&str; 8] = [
+    "/usr/bin/google-chrome",
+    "/usr/bin/google-chrome-stable",
+    "/usr/bin/chromium",
+    "/usr/bin/chromium-browser",
+    "/snap/bin/chromium",
+    "/usr/bin/microsoft-edge",
+    "/usr/bin/microsoft-edge-stable",
+    "/usr/bin/brave-browser",
+];
+
 fn chrome_paths() -> Vec<PathBuf> {
-    let mut paths = Vec::new();
     if cfg!(target_os = "macos") {
-        paths.push(PathBuf::from(
-            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-        ));
-        paths.push(PathBuf::from(
-            "/Applications/Chromium.app/Contents/MacOS/Chromium",
-        ));
-        paths.push(PathBuf::from(
-            "/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary",
-        ));
+        return MACOS.iter().map(PathBuf::from).collect();
     }
     if cfg!(windows) {
-        let local = std::env::var_os("LOCALAPPDATA").map(PathBuf::from);
-        let pf = std::env::var_os("PROGRAMFILES").map(PathBuf::from);
-        let pf86 = std::env::var_os("PROGRAMFILES(X86)").map(PathBuf::from);
-        for root in [local, pf, pf86].into_iter().flatten() {
-            paths.push(root.join("Google/Chrome/Application/chrome.exe"));
-            paths.push(root.join("Chromium/Application/chrome.exe"));
-        }
+        return WINDOWS_ROOTS
+            .iter()
+            .filter_map(std::env::var_os)
+            .map(PathBuf::from)
+            .flat_map(|root| WINDOWS.iter().map(move |path| root.join(path)))
+            .collect();
     }
-    if cfg!(target_os = "linux") {
-        for name in [
-            "/usr/bin/google-chrome",
-            "/usr/bin/google-chrome-stable",
-            "/usr/bin/chromium",
-            "/usr/bin/chromium-browser",
-            "/snap/bin/chromium",
-        ] {
-            paths.push(PathBuf::from(name));
-        }
-    }
-    paths
+    LINUX.iter().map(PathBuf::from).collect()
 }

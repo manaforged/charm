@@ -280,7 +280,28 @@ impl Session {
     }
 
     pub async fn add_cookies(&mut self, cookies: Vec<Cookie>) -> Result<(), Error> {
-        self.set_cookies(serde_json::to_value(cookies)?).await
+        drop(
+            self.send("Network.setCookies", json!({ "cookies": cookies }))
+                .await?,
+        );
+        Ok(())
+    }
+
+    pub async fn cookies(&mut self) -> Result<Vec<Cookie>, Error> {
+        let jar = self.browser_send("Storage.getCookies", json!({})).await?;
+        Ok(serde_json::from_value(
+            jar.get("cookies")
+                .cloned()
+                .unwrap_or(Value::Array(Vec::new())),
+        )?)
+    }
+
+    pub async fn cookie_named(&mut self, name: &str) -> Result<Option<Cookie>, Error> {
+        Ok(self
+            .cookies()
+            .await?
+            .into_iter()
+            .find(|cookie| cookie.name == name))
     }
 }
 

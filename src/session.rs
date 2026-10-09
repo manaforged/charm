@@ -92,10 +92,6 @@ impl Session {
         self.transport.send(method, params, None).await
     }
 
-    pub async fn cookies(&mut self) -> Result<Value, Error> {
-        self.browser_send("Storage.getCookies", json!({})).await
-    }
-
     pub async fn network_on(&mut self) -> Result<(), Error> {
         drop(self.send("Network.enable", json!({})).await?);
         Ok(())
@@ -114,27 +110,8 @@ impl Session {
         Ok(self.transport.take_events())
     }
 
-    pub async fn set_cookies(&mut self, cookies: Value) -> Result<(), Error> {
-        drop(
-            self.send("Network.setCookies", json!({ "cookies": cookies }))
-                .await?,
-        );
-        Ok(())
-    }
-
     pub fn exited(&mut self) -> bool {
         matches!(self.child.try_wait(), Ok(Some(_)))
-    }
-
-    pub async fn cookie_named(&mut self, name: &str) -> Result<Option<Value>, Error> {
-        let jar = self.cookies().await?;
-        let Some(list) = jar.get("cookies").and_then(Value::as_array) else {
-            return Ok(None);
-        };
-        Ok(list
-            .iter()
-            .find(|cookie| cookie.get("name").and_then(Value::as_str) == Some(name))
-            .cloned())
     }
 
     pub async fn evaluate(&mut self, expression: &str) -> Result<Value, Error> {

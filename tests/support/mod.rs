@@ -1,15 +1,16 @@
-use charm::{Launch, Session, Timing, resolve};
+use charm::{Launch, Session, Timing};
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
 pub async fn launch(wait: Duration) -> Session {
-    let exe = resolve().expect("an installed Chrome");
     let timing = Timing {
         wait,
         ..Timing::default()
     };
-    let mut launch = Launch::new(exe).timing(timing);
+    let mut launch = Launch::installed()
+        .expect("an installed Chrome")
+        .timing(timing);
     if std::env::var("CHARM_CHROME_NO_SANDBOX").is_ok_and(|value| !value.is_empty()) {
         launch = launch.arg("--no-sandbox");
     }

@@ -1,8 +1,8 @@
 mod support;
 
 use charm::{
-    Error, ErrorReason, FORBIDDEN_METHODS, RouteAction, ScreenshotOptions, Selector, TextMatch,
-    UrlMatch, expect,
+    Cookie, Error, ErrorReason, FORBIDDEN_METHODS, RouteAction, ScreenshotOptions, Selector,
+    TextMatch, UrlMatch, expect,
 };
 use std::collections::BTreeMap;
 use std::time::Duration;
@@ -127,6 +127,17 @@ async fn routes_and_response_bodies() {
     let real = session.evaluate(&fetch("/api")).await.expect("unrouted");
     assert_eq!(real.as_str(), Some("{\"ok\":true}"));
 
+    session
+        .add_cookies(vec![Cookie {
+            name: "k".into(),
+            value: "v".into(),
+            url: Some(format!("http://127.0.0.1:{port}/")),
+            ..Cookie::default()
+        }])
+        .await
+        .expect("add cookie");
+    let cookie = session.cookie_named("k").await.expect("read cookie");
+    assert_eq!(cookie.map(|cookie| cookie.value).as_deref(), Some("v"));
     session.network_on().await.expect("network");
     let fetched = session.evaluate(&fetch("/data")).await.expect("data");
     assert_eq!(fetched.as_str(), Some("payload-123"));

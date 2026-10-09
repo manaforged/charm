@@ -151,6 +151,7 @@
 | <code>arg(self, arg: impl Into&lt;String&gt;) -&gt; Self</code> |  |
 | <code>args(&amp;self, user_data_dir: &amp;Path) -&gt; Vec&lt;String&gt;</code> |  |
 | <code>headed(self) -&gt; Self</code> |  |
+| <code>installed() -&gt; Result&lt;Self, <a href="#error">Error</a>&gt;</code> |  |
 | <code>new(exe: impl Into&lt;PathBuf&gt;) -&gt; Self</code> |  |
 | <code>offscreen(self) -&gt; Self</code> |  |
 | <code>profile(self, dir: impl Into&lt;PathBuf&gt;) -&gt; Self</code> |  |
@@ -184,7 +185,6 @@
 | <code>pub fn <a href="#locator">Locator</a>&lt;'a&gt;::first(self) -&gt; Self</code> |  |
 | <code>pub async fn <a href="#locator">Locator</a>&lt;'a&gt;::hover(&amp;mut self) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>pub fn <a href="#locator">Locator</a>&lt;'a&gt;::nth(self, index: usize) -&gt; Self</code> |  |
-| <code>pub async fn <a href="#locator">Locator</a>&lt;'a&gt;::press_sequentially(&amp;mut self, text: &amp;str) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>pub fn <a href="#locator">Locator</a>&lt;'a&gt;::selector(&amp;self) -&gt; &amp;<a href="#selector">Selector</a></code> |  |
 | <code>pub async fn <a href="#locator">Locator</a>&lt;'a&gt;::settle(&amp;mut self) -&gt; Result&lt;<a href="#actionable">Actionable</a>, <a href="#error">Error</a>&gt;</code> |  |
 | <code>pub async fn <a href="#locator">Locator</a>&lt;'a&gt;::try_click(&amp;mut self) -&gt; Result&lt;<a href="#clickresult">ClickResult</a>, <a href="#error">Error</a>&gt;</code> |  |
@@ -277,6 +277,8 @@
 | --- | --- |
 | <code>async add_cookies(&amp;mut self, cookies: Vec&lt;<a href="#cookie">Cookie</a>&gt;) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>async clear_cookies(&amp;mut self) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+| <code>async cookie_named(&amp;mut self, name: &amp;str) -&gt; Result&lt;Option&lt;<a href="#cookie">Cookie</a>&gt;, <a href="#error">Error</a>&gt;</code> |  |
+| <code>async cookies(&amp;mut self) -&gt; Result&lt;Vec&lt;<a href="#cookie">Cookie</a>&gt;, <a href="#error">Error</a>&gt;</code> |  |
 | <code>async response_body(&amp;mut self, response: &amp;<a href="#observedresponse">ObservedResponse</a>) -&gt; Result&lt;Vec&lt;u8&gt;, <a href="#error">Error</a>&gt;</code> |  |
 | <code>async wait_for_request(&amp;mut self, url: <a href="#urlmatch">UrlMatch</a>) -&gt; Result&lt;<a href="#observedrequest">ObservedRequest</a>, <a href="#error">Error</a>&gt;</code> |  |
 | <code>async wait_for_response(&amp;mut self, url: <a href="#urlmatch">UrlMatch</a>) -&gt; Result&lt;<a href="#observedresponse">ObservedResponse</a>, <a href="#error">Error</a>&gt;</code> |  |
@@ -289,8 +291,6 @@
 | <code>async block_urls(&amp;mut self, urls: &amp;[String]) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>async browser_send(&amp;mut self, method: &amp;str, params: Value) -&gt; Result&lt;Value, <a href="#error">Error</a>&gt;</code> |  |
 | <code>async close(self) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
-| <code>async cookie_named(&amp;mut self, name: &amp;str) -&gt; Result&lt;Option&lt;Value&gt;, <a href="#error">Error</a>&gt;</code> |  |
-| <code>async cookies(&amp;mut self) -&gt; Result&lt;Value, <a href="#error">Error</a>&gt;</code> |  |
 | <code>async evaluate(&amp;mut self, expression: &amp;str) -&gt; Result&lt;Value, <a href="#error">Error</a>&gt;</code> |  |
 | <code>exited(&amp;mut self) -&gt; bool</code> |  |
 | <code>async goto(&amp;mut self, url: &amp;str) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
@@ -299,7 +299,6 @@
 | <code>async open(&amp;mut self, url: &amp;str) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>async send(&amp;mut self, method: &amp;str, params: Value) -&gt; Result&lt;Value, <a href="#error">Error</a>&gt;</code> |  |
 | <code>sent(&amp;self) -&gt; &amp;BTreeSet&lt;String&gt;</code> |  |
-| <code>async set_cookies(&amp;mut self, cookies: Value) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>async take_events(&amp;mut self) -&gt; Result&lt;Vec&lt;Value&gt;, <a href="#error">Error</a>&gt;</code> |  |
 | <code>async click(&amp;mut self, selector: impl Into&lt;<a href="#selector">Selector</a>&gt;) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>async fill(&amp;mut self, selector: impl Into&lt;<a href="#selector">Selector</a>&gt;, text: &amp;str) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
