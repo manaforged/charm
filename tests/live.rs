@@ -38,7 +38,7 @@ async fn drives_a_page_without_forbidden_methods() {
     assert!(png.starts_with(b"\x89PNG"));
     let sent = session.sent().clone();
     assert!(sent.contains("Input.dispatchMouseEvent"));
-    for method in FORBIDDEN_METHODS {
+    for &method in FORBIDDEN_METHODS {
         assert!(!sent.contains(method), "{method} was sent");
     }
     session.close().await.expect("close");
@@ -82,7 +82,7 @@ async fn frames_regex_and_assertions() {
         .to_have_text("clicked")
         .await
         .expect("cross-origin text");
-    for method in FORBIDDEN_METHODS {
+    for &method in FORBIDDEN_METHODS {
         assert!(!session.sent().contains(method), "{method} was sent");
     }
     session.close().await.expect("close");
@@ -148,7 +148,7 @@ async fn routes_and_response_bodies() {
     assert_eq!(response.status, 200);
     let body = session.response_body(&response).await.expect("body");
     assert_eq!(body, b"payload-123");
-    for method in FORBIDDEN_METHODS {
+    for &method in FORBIDDEN_METHODS {
         assert!(!session.sent().contains(method), "{method} was sent");
     }
     session.close().await.expect("close");

@@ -2,7 +2,7 @@ use crate::Error;
 use crate::route::{Route, route_reply};
 use serde::Deserialize;
 use serde_json::{Value, json};
-use std::collections::BTreeSet;
+use std::collections::VecDeque;
 
 const MAX_ATTEMPTS: usize = 1024;
 
@@ -140,19 +140,19 @@ pub(crate) enum Verdict {
 }
 
 pub(crate) struct Intercept {
-    pub(crate) session: String,
+    pub(crate) session: Option<String>,
     login: Option<(String, String)>,
-    attempted: BTreeSet<String>,
+    attempted: VecDeque<String>,
     patterns: Vec<Pattern>,
     pub(crate) routes: Vec<Route>,
 }
 
 impl Intercept {
-    pub(crate) fn new(session: &str) -> Self {
+    pub(crate) fn new(session: Option<&str>) -> Self {
         Self {
-            session: session.to_string(),
+            session: session.map(str::to_owned),
             login: None,
-            attempted: BTreeSet::new(),
+            attempted: VecDeque::new(),
             patterns: Vec::new(),
             routes: Vec::new(),
         }
@@ -193,7 +193,9 @@ impl Intercept {
     }
 
     pub(crate) fn decide(&mut self, msg: &Value, configuring: bool) -> Result<Verdict, Error> {
-        if msg.get("sessionId").and_then(Value::as_str) != Some(self.session.as_str()) {
+        if let Some(session) = self.session.as_deref()
+            && msg.get("sessionId").and_then(Value::as_str) != Some(session)
+        {
             return Ok(Verdict::Pass);
         }
         let params = &msg["params"];
@@ -202,7 +204,7 @@ impl Intercept {
                 || params.get("responseErrorReason").is_some()
             {
                 if let Some(id) = params.get("requestId").and_then(Value::as_str) {
-                    self.attempted.remove(id);
+                    self.forget(id);
                 }
                 return Ok(Verdict::Pass);
             }
@@ -236,18 +238,19 @@ impl Intercept {
                     method: "Fetch.authRequired".into(),
                     message: "auth request has no requestId".into(),
                 })?;
-            if self.attempted.contains(id) {
+            if self.attempted.iter().any(|seen| seen == id) {
                 reply.params["authChallengeResponse"] = json!({ "response": "CancelAuth" });
             } else {
                 if self.attempted.len() >= MAX_ATTEMPTS {
-                    return Err(Error::Protocol {
-                        method: "Fetch.continueWithAuth".into(),
-                        message: "proxy authentication request limit exceeded".into(),
-                    });
+                    drop(self.attempted.pop_front());
                 }
-                self.attempted.insert(id.to_string());
+                self.attempted.push_back(id.to_string());
             }
         }
         Ok(Verdict::Reply(reply))
+    }
+
+    fn forget(&mut self, id: &str) {
+        self.attempted.retain(|seen| seen != id);
     }
 }

@@ -10,7 +10,7 @@ fn default_launch_is_headless_port_zero_and_url_last() {
 }
 
 #[test]
-fn flags_cover_headed_proxy_and_url() {
+fn flags_cover_headed_and_proxy_and_start_blank() {
     let args = Launch::new("chrome")
         .headed()
         .proxy("http://127.0.0.1:9")
@@ -22,5 +22,16 @@ fn flags_cover_headed_proxy_and_url() {
         args.iter()
             .any(|a| a == "--proxy-server=http://127.0.0.1:9")
     );
-    assert_eq!(args.last().map(String::as_str), Some("https://example.com"));
+    assert_eq!(args.last().map(String::as_str), Some("about:blank"));
+}
+
+#[test]
+fn debug_output_hides_proxy_credentials() {
+    let launch = Launch::new("chrome")
+        .proxy("http://user:hunter2@127.0.0.1:9")
+        .url("https://user:pw@example.com/");
+    let shown = format!("{launch:?}");
+    assert!(!shown.contains("hunter2"), "{shown}");
+    assert!(!shown.contains(":pw@"), "{shown}");
+    assert!(shown.contains("127.0.0.1:9"), "{shown}");
 }

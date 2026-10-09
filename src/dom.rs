@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-pub(crate) const RESOLVER: &str = r##"(function(){
+pub(crate) const RESOLVER: &str = r##"(function(matchText){
   function norm(t){return (t==null?'':String(t)).replace(/\s+/g,' ').trim();}
   function isVisible(el){
     if(!el||el.nodeType!==1)return false;
@@ -10,10 +10,6 @@ pub(crate) const RESOLVER: &str = r##"(function(){
     if(s.visibility==='hidden'||s.display==='none'||s.opacity==='0')return false;
     for(var p=el.parentElement;p;p=p.parentElement){if(getComputedStyle(p).opacity==='0')return false;}
     return true;
-  }
-  function matchText(actual,q){
-    if(q.mode==='regex'){try{return new RegExp(q.text,q.flags.replace(/[gy]/g,'')).test(actual);}catch(e){return false;}}
-    return q.mode==='exact'?actual===q.text:actual.toLowerCase().indexOf(q.text.toLowerCase())>=0;
   }
   function accName(el,role){
     var lb=el.getAttribute&&el.getAttribute('aria-labelledby');
@@ -95,6 +91,7 @@ impl BoundingBox {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[non_exhaustive]
 pub enum Blocker {
     #[serde(rename = "no match")]
     NoMatch,
@@ -115,6 +112,7 @@ pub enum Blocker {
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
+#[non_exhaustive]
 pub struct Actionable {
     pub ok: bool,
     #[serde(default)]
@@ -126,6 +124,7 @@ pub struct Actionable {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct ClickResult {
     pub clicked: bool,
     pub reason: Option<Blocker>,

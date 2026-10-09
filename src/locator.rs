@@ -1,6 +1,6 @@
 mod reads;
 
-use crate::dom::{Actionable, Blocker, BoundingBox, ClickResult, Read};
+use crate::dom::{Actionable, BoundingBox, ClickResult, Read};
 use crate::error::Error;
 use crate::frames::Context;
 use crate::input::MouseButton;
@@ -19,10 +19,12 @@ pub struct Locator<'a> {
 }
 
 impl Session {
+    #[must_use]
     pub fn locator(&mut self, selector: impl Into<Selector>) -> Locator<'_> {
         Locator::framed(self, selector.into(), Vec::new())
     }
 
+    #[must_use]
     pub fn get_by_role(&mut self, role: &str, name: Option<&str>, exact: bool) -> Locator<'_> {
         self.locator(Selector::Role {
             role: role.to_owned(),
@@ -30,14 +32,17 @@ impl Session {
         })
     }
 
+    #[must_use]
     pub fn get_by_text(&mut self, text: &str, exact: bool) -> Locator<'_> {
         self.locator(Selector::Text(TextMatch::new(text, exact)))
     }
 
+    #[must_use]
     pub fn get_by_test_id(&mut self, id: &str) -> Locator<'_> {
         self.locator(Selector::TestId(id.to_owned()))
     }
 
+    #[must_use]
     pub fn get_by_label(&mut self, text: &str, exact: bool) -> Locator<'_> {
         self.locator(Selector::Label(TextMatch::new(text, exact)))
     }
@@ -169,6 +174,10 @@ impl<'a> Locator<'a> {
             }
             Err(error) => return Err(error),
         };
+        if !self.frames.is_empty() {
+            self.context = None;
+        }
+        let context = self.context().await?;
         verdict.bounds = verdict.bounds.map(|bounds| context.shift(bounds));
         Ok(verdict)
     }
@@ -183,15 +192,11 @@ impl<'a> Locator<'a> {
         let verdict = self.settle_within(timeout).await?;
         match (verdict.ok, verdict.bounds) {
             (true, Some(bounds)) => Ok(bounds),
-            _ => Err(Error::Timeout(format!(
-                "not actionable ({:?}{}): {:?}",
-                verdict.reason.unwrap_or(Blocker::NoMatch),
-                verdict
-                    .covered_by
-                    .map(|by| format!(", covered by {by}"))
-                    .unwrap_or_default(),
-                self.selector
-            ))),
+            _ => Err(Error::NotActionable {
+                reason: verdict.reason,
+                covered_by: verdict.covered_by,
+                selector: self.selector.clone(),
+            }),
         }
     }
 

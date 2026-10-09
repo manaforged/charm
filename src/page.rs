@@ -2,8 +2,12 @@ use crate::error::Error;
 use crate::session::Session;
 use crate::wait::LoadState;
 use serde_json::{Value, json};
+use std::time::Instant;
+
+const DOCUMENT_ID: &str = "String(performance.timeOrigin)";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub enum ImageFormat {
     #[default]
     Png,
@@ -39,6 +43,7 @@ pub struct ScreenshotOptions {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ScriptTag {
     Url(String),
     Content(String),
@@ -46,9 +51,65 @@ pub enum ScriptTag {
 
 impl Session {
     pub async fn reload(&mut self) -> Result<(), Error> {
+        let before = self.document_id().await?;
         drop(self.send("Page.reload", json!({})).await?);
-        let timeout = self.timing().navigate;
-        self.load_state_within(LoadState::Load, timeout).await
+        self.await_document(&before, LoadState::Load, "Page.reload")
+            .await
+    }
+
+    pub async fn open(&mut self, url: &str) -> Result<(), Error> {
+        self.navigate(url).await?;
+        Ok(())
+    }
+
+    pub async fn goto(&mut self, url: &str) -> Result<(), Error> {
+        let before = self.document_id().await?;
+        if self.navigate(url).await? {
+            self.await_document(&before, LoadState::DomContentLoaded, "Page.navigate")
+                .await?;
+        }
+        Ok(())
+    }
+
+    async fn navigate(&mut self, url: &str) -> Result<bool, Error> {
+        let nav = self.send("Page.navigate", json!({ "url": url })).await?;
+        if let Some(error) = nav.get("errorText").and_then(Value::as_str)
+            && error != "net::ERR_ABORTED"
+        {
+            return Err(Error::Protocol {
+                method: "Page.navigate".into(),
+                message: error.to_string(),
+            });
+        }
+        Ok(nav.get("loaderId").and_then(Value::as_str).is_some())
+    }
+
+    async fn document_id(&mut self) -> Result<String, Error> {
+        self.evaluate_text(DOCUMENT_ID).await
+    }
+
+    async fn await_document(
+        &mut self,
+        before: &str,
+        state: LoadState,
+        method: &str,
+    ) -> Result<(), Error> {
+        let expression = format!("{DOCUMENT_ID} !== {}", serde_json::to_string(before)?);
+        let deadline = Instant::now() + self.timing().navigate;
+        let waited = match self
+            .poll_expression(&expression, self.timing().navigate)
+            .await
+        {
+            Ok(_) => {
+                let left = deadline.saturating_duration_since(Instant::now());
+                self.load_state_within(state, left).await
+            }
+            Err(error) => Err(error),
+        };
+        match waited {
+            Err(Error::Timeout(_)) => Err(Error::Timeout(method.into())),
+            other => other,
+        }
     }
 
     async fn evaluate_text(&mut self, expression: &str) -> Result<String, Error> {

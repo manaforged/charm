@@ -5,8 +5,6 @@ use crate::selector::{Selector, TextMatch, quote};
 use crate::session::Session;
 use std::ops::Not;
 
-const NORM: &str = "(s=>String(s).replace(/\\s+/g,' ').trim())";
-
 fn describe(matcher: &TextMatch) -> String {
     match matcher {
         TextMatch::Exact(text) => quote(text),
@@ -15,30 +13,10 @@ fn describe(matcher: &TextMatch) -> String {
     }
 }
 
-fn test(matcher: &TextMatch, value: &str, normalize: bool, contains: bool) -> String {
-    let subject = if normalize {
-        format!("{NORM}({value})")
-    } else {
-        format!("String({value})")
-    };
-    let wanted = |text: &str| {
-        if normalize {
-            format!("{NORM}({})", quote(text))
-        } else {
-            quote(text)
-        }
-    };
+fn contained(matcher: TextMatch) -> TextMatch {
     match matcher {
-        TextMatch::Regex { pattern, flags } => {
-            format!(
-                "new RegExp({},{}).test({subject})",
-                quote(pattern),
-                quote(flags)
-            )
-        }
-        TextMatch::Contains(text) => format!("{subject}.includes({})", wanted(text)),
-        TextMatch::Exact(text) if contains => format!("{subject}.includes({})", wanted(text)),
-        TextMatch::Exact(text) => format!("{subject}==={}", wanted(text)),
+        TextMatch::Exact(text) => TextMatch::Contains(text),
+        other => other,
     }
 }
 
@@ -70,6 +48,7 @@ impl Check {
     }
 }
 
+#[must_use]
 pub fn expect<'l, 's>(locator: &'l mut Locator<'s>) -> LocatorExpect<'l, 's> {
     LocatorExpect {
         locator,
@@ -77,6 +56,7 @@ pub fn expect<'l, 's>(locator: &'l mut Locator<'s>) -> LocatorExpect<'l, 's> {
     }
 }
 
+#[must_use]
 pub fn expect_page(session: &mut Session) -> PageExpect<'_> {
     PageExpect {
         session,
@@ -107,18 +87,11 @@ impl LocatorExpect<'_, '_> {
         }
     }
 
-    fn text(
-        &self,
-        read: &Read<'_>,
-        name: &str,
-        matcher: &TextMatch,
-        normalize: bool,
-        contains: bool,
-    ) -> Check {
+    fn text(&self, read: &Read<'_>, name: &str, matcher: &TextMatch, raw: bool) -> Check {
         Check {
             expected: format!("{name} {}", describe(matcher)),
             value: read.expr(&self.locator.element_expr()),
-            pass: format!("v!==null&&{}", test(matcher, "v", normalize, contains)),
+            pass: format!("v!==null&&{}", matcher.test_expr("v", raw)),
         }
     }
 
@@ -175,13 +148,7 @@ impl LocatorExpect<'_, '_> {
     }
 
     pub async fn to_have_text(self, expected: impl Into<TextMatch>) -> Result<(), Error> {
-        let check = self.text(
-            &Read::TextContent,
-            "to have text",
-            &expected.into(),
-            true,
-            false,
-        );
+        let check = self.text(&Read::TextContent, "to have text", &expected.into(), false);
         self.run(check).await
     }
 
@@ -189,21 +156,14 @@ impl LocatorExpect<'_, '_> {
         let check = self.text(
             &Read::TextContent,
             "to contain text",
-            &expected.into(),
-            true,
-            true,
+            &contained(expected.into()),
+            false,
         );
         self.run(check).await
     }
 
     pub async fn to_have_value(self, expected: impl Into<TextMatch>) -> Result<(), Error> {
-        let check = self.text(
-            &Read::InputValue,
-            "to have value",
-            &expected.into(),
-            false,
-            false,
-        );
+        let check = self.text(&Read::InputValue, "to have value", &expected.into(), true);
         self.run(check).await
     }
 
@@ -213,13 +173,7 @@ impl LocatorExpect<'_, '_> {
         expected: impl Into<TextMatch>,
     ) -> Result<(), Error> {
         let label = format!("to have attribute {}", quote(name));
-        let check = self.text(
-            &Read::Attribute(name),
-            &label,
-            &expected.into(),
-            false,
-            false,
-        );
+        let check = self.text(&Read::Attribute(name), &label, &expected.into(), true);
         self.run(check).await
     }
 
@@ -252,7 +206,7 @@ impl PageExpect<'_> {
         let check = Check {
             expected: format!("{name} {}", describe(&matcher)),
             value: value.to_owned(),
-            pass: test(&matcher, "v", false, false),
+            pass: matcher.test_expr("v", true),
         };
         let timeout = self.session.timing().wait;
         match self

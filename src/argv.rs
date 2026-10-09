@@ -1,7 +1,17 @@
 use crate::Timing;
+use std::fmt;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+use tokio::io::AsyncReadExt;
+use tokio::process::Child;
+use tokio::task::JoinHandle;
 
-#[derive(Debug, Clone)]
+pub(crate) const BLANK: &str = "about:blank";
+const STDERR_TAIL: usize = 4096;
+const STDERR_CHUNK: usize = 1024;
+
+#[derive(Clone)]
 pub struct Launch {
     exe: PathBuf,
     user_data_dir: Option<PathBuf>,
@@ -26,7 +36,7 @@ impl Launch {
             exe: exe.into(),
             user_data_dir: None,
             headless: true,
-            start_url: "about:blank".into(),
+            start_url: BLANK.into(),
             offscreen: false,
             proxy: None,
             timing: Timing::default(),
@@ -118,8 +128,68 @@ impl Launch {
             args.push("--window-position=-32000,-32000".into());
         }
         args.extend(self.extra.iter().cloned());
-        args.push(self.start_url.clone());
+        args.push(BLANK.into());
         args
+    }
+}
+
+impl fmt::Debug for Launch {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Launch")
+            .field("exe", &self.exe)
+            .field("user_data_dir", &self.user_data_dir)
+            .field("headless", &self.headless)
+            .field("start_url", &without_login(&self.start_url))
+            .field("offscreen", &self.offscreen)
+            .field("proxy", &self.proxy.as_deref().map(proxy_server))
+            .field("timing", &self.timing)
+            .field("extra_args", &self.extra.len())
+            .finish()
+    }
+}
+
+pub(crate) async fn clear_stale_port(user_data_dir: &Path) -> std::io::Result<()> {
+    match tokio::fs::remove_file(user_data_dir.join("DevToolsActivePort")).await {
+        Err(error) if error.kind() != std::io::ErrorKind::NotFound => Err(error),
+        _ => Ok(()),
+    }
+}
+
+pub(crate) struct StderrTail {
+    tail: Arc<Mutex<Vec<u8>>>,
+    task: Option<JoinHandle<()>>,
+}
+
+impl StderrTail {
+    pub(crate) fn start(child: &mut Child) -> Self {
+        let tail = Arc::new(Mutex::new(Vec::new()));
+        let task = child.stderr.take().map(|mut stderr| {
+            let sink = Arc::clone(&tail);
+            tokio::spawn(async move {
+                let mut chunk = [0u8; STDERR_CHUNK];
+                while let Ok(read) = stderr.read(&mut chunk).await {
+                    if read == 0 {
+                        break;
+                    }
+                    if let Ok(mut bytes) = sink.lock() {
+                        bytes.extend_from_slice(&chunk[..read]);
+                        let excess = bytes.len().saturating_sub(STDERR_TAIL);
+                        bytes.drain(..excess);
+                    }
+                }
+            })
+        });
+        Self { tail, task }
+    }
+
+    pub(crate) async fn finish(mut self, budget: Duration) -> String {
+        if let Some(task) = self.task.take() {
+            drop(tokio::time::timeout(budget, task).await);
+        }
+        self.tail
+            .lock()
+            .map(|bytes| String::from_utf8_lossy(&bytes).trim().to_string())
+            .unwrap_or_default()
     }
 }
 
@@ -132,6 +202,17 @@ pub(crate) fn proxy_server(url: &str) -> String {
     let rest = rest.split(['/', '?', '#']).next().unwrap_or(rest);
     let host = rest.rsplit_once('@').map_or(rest, |(_, host)| host);
     format!("{scheme}://{host}")
+}
+
+fn without_login(url: &str) -> String {
+    let Some((scheme, rest)) = url.split_once("://") else {
+        return url.to_string();
+    };
+    let end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
+    let host = rest[..end]
+        .rsplit_once('@')
+        .map_or(&rest[..end], |(_, host)| host);
+    format!("{scheme}://{host}{}", &rest[end..])
 }
 
 pub(crate) fn proxy_login(url: &str) -> Option<(String, String)> {

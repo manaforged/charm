@@ -23,7 +23,7 @@ async fn main() -> Result<(), charm::Error> {
         .await?;
     println!("{:?}", session.locator("#result").inner_text().await?);
 
-    for method in FORBIDDEN_METHODS {
+    for &method in FORBIDDEN_METHODS {
         assert!(!session.sent().contains(method), "{method} was sent");
     }
     session.close().await

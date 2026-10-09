@@ -8,6 +8,7 @@ use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct FrameInfo {
     pub id: String,
     pub url: String,
@@ -115,7 +116,7 @@ struct FrameRecord {
 
 fn meta_expr(element: &str) -> String {
     format!(
-        "(()=>{{const el={element};if(!el)return null;let origin='';try{{origin=new URL(el.src||'',location.href).origin}}catch(e){{}}let doc=null;try{{doc=el.contentDocument}}catch(e){{}}const same=!el.src||origin==='null'||origin===location.origin;if(same!==!!doc)return null;const r=el.getBoundingClientRect();const cs=getComputedStyle(el);const n=v=>parseFloat(v)||0;return {{x:r.x+n(cs.borderLeftWidth)+n(cs.paddingLeft),y:r.y+n(cs.borderTopWidth)+n(cs.paddingTop),src:el.src||'',origin,sameOrigin:same}};}})()"
+        "(()=>{{const el={element};if(!el)return null;let origin='';try{{origin=new URL(el.src||'',location.href).origin}}catch(e){{}}let doc=null;try{{doc=el.contentDocument}}catch(e){{}}const same=!el.src||origin==='null'||origin===location.origin;if(same!==!!doc)return null;const v=el.getBoundingClientRect();if(v.bottom<0||v.right<0||v.top>innerHeight||v.left>innerWidth)el.scrollIntoView({{block:'center',inline:'center'}});const r=el.getBoundingClientRect();const cs=getComputedStyle(el);const n=v=>parseFloat(v)||0;return {{x:r.x+n(cs.borderLeftWidth)+n(cs.paddingLeft),y:r.y+n(cs.borderTopWidth)+n(cs.paddingTop),src:el.src||'',origin,sameOrigin:same}};}})()"
     )
 }
 
@@ -148,6 +149,7 @@ fn match_target<'t>(meta: &FrameMeta, iframes: &'t [TargetInfo]) -> Option<&'t T
 }
 
 impl Session {
+    #[must_use]
     pub fn frame_locator(&mut self, selector: impl Into<Selector>) -> FrameLocator<'_> {
         FrameLocator {
             session: self,
@@ -200,7 +202,7 @@ impl Session {
                 .await?,
         );
         let meta: Option<FrameMeta> = self.read_in(parent.session_id(), &probe).await?;
-        let meta = meta.ok_or_else(|| Error::Timeout(format!("frame detached: {iframe:?}")))?;
+        let meta = meta.ok_or_else(|| Error::Frame(format!("frame detached: {iframe:?}")))?;
         let offset = (parent.offset.0 + meta.x, parent.offset.1 + meta.y);
         if meta.same_origin {
             return Ok(Context {
@@ -230,24 +232,30 @@ impl Session {
             .filter(|info| info.kind == TargetKind::Iframe)
             .collect();
         let target = match_target(meta, &iframes).ok_or_else(|| {
-            Error::Timeout(format!(
+            Error::Frame(format!(
                 "no out-of-process frame target for {iframe:?} (src {}, origin {})",
                 meta.src, meta.origin
             ))
         })?;
+        if let Some(cached) = self.frame_sessions().get(&target.target_id) {
+            return Ok(cached.clone());
+        }
         let attached = self
             .browser_send(
                 "Target.attachToTarget",
                 json!({ "targetId": target.target_id, "flatten": true }),
             )
             .await?;
-        attached
+        let session_id = attached
             .get("sessionId")
             .and_then(Value::as_str)
             .map(str::to_owned)
             .ok_or_else(|| Error::Protocol {
                 method: "Target.attachToTarget".into(),
                 message: "missing sessionId".into(),
-            })
+            })?;
+        self.frame_sessions()
+            .insert(target.target_id.clone(), session_id.clone());
+        Ok(session_id)
     }
 }

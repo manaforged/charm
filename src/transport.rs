@@ -14,7 +14,16 @@ use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 const MAX_PENDING: usize = 1024;
 const MAX_EVENTS: usize = 4096;
 
-pub const FORBIDDEN_METHODS: [&str; 3] = ["Runtime.enable", "Page.enable", "Target.setAutoAttach"];
+pub const FORBIDDEN_METHODS: &[&str] = &[
+    "Runtime.enable",
+    "Page.enable",
+    "Target.setAutoAttach",
+    "Target.sendMessageToTarget",
+    "Target.exposeDevToolsProtocol",
+    "Target.autoAttachRelated",
+];
+
+const ATTACH_TO_TARGET: &str = "Target.attachToTarget";
 
 pub(crate) fn blocked(method: &str) -> Option<&'static str> {
     FORBIDDEN_METHODS
@@ -23,12 +32,18 @@ pub(crate) fn blocked(method: &str) -> Option<&'static str> {
         .find(|forbidden| *forbidden == method)
 }
 
+fn unflattened(method: &str, params: &Value) -> Option<&'static str> {
+    (method == ATTACH_TO_TARGET && params.get("flatten") != Some(&Value::Bool(true)))
+        .then_some(ATTACH_TO_TARGET)
+}
+
 pub(crate) struct Transport {
     ws: WebSocketStream<MaybeTlsStream<TcpStream>>,
     next_id: u64,
     timing: Timing,
     sent: BTreeSet<String>,
-    events: Vec<Value>,
+    events: VecDeque<Value>,
+    dropped: u64,
     intercept: Option<Intercept>,
     pending: BTreeMap<u64, &'static str>,
     fetch: Option<(u64, Value)>,
@@ -42,7 +57,8 @@ impl Transport {
             next_id: 1,
             timing,
             sent: BTreeSet::new(),
-            events: Vec::new(),
+            events: VecDeque::new(),
+            dropped: 0,
             intercept: None,
             pending: BTreeMap::new(),
             fetch: None,
@@ -50,23 +66,46 @@ impl Transport {
         }
     }
 
-    fn intercept_for(&mut self, session: &str) -> &mut Intercept {
-        let current = self
-            .intercept
-            .take()
-            .filter(|intercept| intercept.session == session);
-        self.intercept
-            .insert(current.unwrap_or_else(|| Intercept::new(session)))
+    async fn intercept_for(&mut self, session: Option<&str>) -> Result<Option<String>, Error> {
+        let narrowed = match self.intercept.take() {
+            Some(current) if current.session.is_none() || current.session.as_deref() == session => {
+                let scope = current.session.clone();
+                self.intercept = Some(current);
+                return Ok(scope);
+            }
+            Some(mut current) if session.is_none() => {
+                let previous = current.session.take();
+                self.intercept = Some(current);
+                previous
+            }
+            _ => {
+                self.intercept = Some(Intercept::new(session));
+                None
+            }
+        };
+        if let Some(previous) = narrowed {
+            drop(
+                self.send("Fetch.disable", json!({}), Some(&previous))
+                    .await?,
+            );
+        }
+        Ok(session.map(str::to_owned))
     }
 
     pub(crate) async fn arm_auth(
         &mut self,
-        session: &str,
+        session: Option<&str>,
         user: String,
         pass: String,
     ) -> Result<(), Error> {
-        self.intercept_for(session).login(user, pass);
-        drop(self.send("Fetch.disable", json!({}), Some(session)).await?);
+        let scope = self.intercept_for(session).await?;
+        if let Some(intercept) = self.intercept.as_mut() {
+            intercept.login(user, pass);
+        }
+        drop(
+            self.send("Fetch.disable", json!({}), scope.as_deref())
+                .await?,
+        );
         Ok(())
     }
 
@@ -75,12 +114,17 @@ impl Transport {
         session: &str,
         edit: impl FnOnce(&mut Vec<Route>),
     ) -> Result<(), Error> {
-        let intercept = self.intercept_for(session);
-        edit(&mut intercept.routes);
-        if !intercept.active() {
-            self.intercept = None;
+        let scope = self.intercept_for(Some(session)).await?;
+        if let Some(intercept) = self.intercept.as_mut() {
+            edit(&mut intercept.routes);
+            if !intercept.active() {
+                self.intercept = None;
+            }
         }
-        drop(self.send("Fetch.disable", json!({}), Some(session)).await?);
+        drop(
+            self.send("Fetch.disable", json!({}), scope.as_deref())
+                .await?,
+        );
         Ok(())
     }
 
@@ -107,7 +151,7 @@ impl Transport {
         &mut self,
         method: &'static str,
         params: Value,
-        session: &str,
+        session: Option<&str>,
     ) -> Result<(), Error> {
         if self.pending.len() >= MAX_PENDING {
             return Err(Error::Protocol {
@@ -115,7 +159,7 @@ impl Transport {
                 message: "too many unacknowledged CDP commands".into(),
             });
         }
-        let id = self.write(method, params, Some(session)).await?;
+        let id = self.write(method, params, session).await?;
         self.pending.insert(id, method);
         Ok(())
     }
@@ -138,27 +182,28 @@ impl Transport {
                 Ok(true)
             }
             Verdict::Reply(reply) => {
-                let session = intercept.session.clone();
-                self.post(reply.method, reply.params, &session).await?;
+                let session = msg.get("sessionId").and_then(Value::as_str);
+                self.post(reply.method, reply.params, session).await?;
                 Ok(true)
             }
         }
     }
 
-    fn queued(&mut self, msg: Value) -> Result<(), Error> {
+    fn queued(&mut self, msg: Value) {
         if self.events.len() >= MAX_EVENTS {
-            return Err(Error::Protocol {
-                method: "CDP events".into(),
-                message: "browser event queue is full".into(),
-            });
+            drop(self.events.pop_front());
+            self.dropped += 1;
         }
-        self.events.push(msg);
-        Ok(())
+        self.events.push_back(msg);
+    }
+
+    pub(crate) fn dropped_events(&self) -> u64 {
+        self.dropped
     }
 
     async fn event(&mut self, msg: Value) -> Result<(), Error> {
         if !self.answer(&msg).await? {
-            self.queued(msg)?;
+            self.queued(msg);
         }
         Ok(())
     }
@@ -202,12 +247,12 @@ impl Transport {
         mut params: Value,
         session_id: Option<&str>,
     ) -> Result<Value, Error> {
-        if let Some(name) = blocked(method) {
+        if let Some(name) = blocked(method).or_else(|| unflattened(method, &params)) {
             return Err(Error::Blocked(name));
         }
         let configuring = matches!(method, "Fetch.enable" | "Fetch.disable")
             && self.intercept.as_ref().is_some_and(|intercept| {
-                intercept.active() && Some(intercept.session.as_str()) == session_id
+                intercept.active() && intercept.session.as_deref() == session_id
             });
         let mut patterns = None;
         let wire_method = match self.intercept.as_ref() {
@@ -270,13 +315,23 @@ impl Transport {
 
     pub(crate) async fn pump(&mut self) -> Result<(), Error> {
         let deadline = Instant::now() + self.timing.command;
-        timeout_at(deadline, self.drain())
+        let quiet = Instant::now() + self.timing.drain;
+        timeout_at(deadline, self.idle(quiet))
             .await
             .map_err(|_elapsed| Error::Timeout("CDP pump".into()))?
     }
 
-    async fn drain(&mut self) -> Result<(), Error> {
-        let deadline = Instant::now() + self.timing.drain;
+    pub(crate) async fn pump_then_take(&mut self) -> Result<Vec<Value>, Error> {
+        let mut taken = self.take_events();
+        let pumped = self.pump().await;
+        taken.extend(self.take_events());
+        match pumped {
+            Err(error) if taken.is_empty() => Err(error),
+            _ => Ok(taken),
+        }
+    }
+
+    pub(crate) async fn idle(&mut self, deadline: Instant) -> Result<(), Error> {
         loop {
             let frame = match timeout_at(deadline, self.ws.next()).await {
                 Err(_elapsed) => return Ok(()),
@@ -299,11 +354,11 @@ impl Transport {
 
     pub(crate) fn take_event(&mut self, wanted: impl Fn(&Value) -> bool) -> Option<Value> {
         let at = self.events.iter().position(wanted)?;
-        Some(self.events.remove(at))
+        self.events.remove(at)
     }
 
     pub(crate) fn take_events(&mut self) -> Vec<Value> {
-        std::mem::take(&mut self.events)
+        self.events.drain(..).collect()
     }
 
     pub(crate) async fn close(&mut self) {
@@ -322,7 +377,7 @@ fn result(msg: &Value, method: &str) -> Result<Value, Error> {
 }
 
 fn closed() -> Error {
-    Error::Connect("CDP websocket closed".into())
+    Error::Closed
 }
 
 #[cfg(test)]

@@ -4,7 +4,16 @@ use serde_json::{Value, json};
 const XPATH_PREFIX: &str = "xpath=";
 const RESOLVER_VAR: &str = "__c";
 
+pub(crate) const MATCH_TEXT: &str = r"(function(actual,q,raw){
+  function norm(t){var v=t==null?'':String(t);return raw?v:v.replace(/\s+/g,' ').trim();}
+  var a=norm(actual);
+  if(q.mode==='regex'){try{return new RegExp(q.text,q.flags.replace(/[gy]/g,'')).test(a);}catch(e){return false;}}
+  var w=norm(q.text);
+  return q.mode==='exact'?a===w:a.toLowerCase().indexOf(w.toLowerCase())>=0;
+})";
+
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Selector {
     Css(String),
     XPath(String),
@@ -18,6 +27,7 @@ pub enum Selector {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum TextMatch {
     Exact(String),
     Contains(String),
@@ -40,6 +50,10 @@ impl TextMatch {
             pattern: pattern.to_owned(),
             flags: flags.to_owned(),
         }
+    }
+
+    pub(crate) fn test_expr(&self, value: &str, raw: bool) -> String {
+        format!("{MATCH_TEXT}({value},{},{raw})", self.query())
     }
 
     fn query(&self) -> Value {
@@ -99,7 +113,7 @@ impl Selector {
     }
 
     fn with_resolver(body: &str) -> String {
-        format!("(function(){{var {RESOLVER_VAR}=({RESOLVER})();{body}}})()")
+        format!("(function(){{var {RESOLVER_VAR}=({RESOLVER})({MATCH_TEXT});{body}}})()")
     }
 
     pub(crate) fn one_expr(&self, index: Option<usize>) -> String {

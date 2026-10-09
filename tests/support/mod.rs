@@ -1,9 +1,14 @@
 use charm::{Launch, Session, Timing};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
 pub async fn launch(wait: Duration) -> Session {
+    launch_with(wait, None).await
+}
+
+pub async fn launch_with(wait: Duration, url: Option<String>) -> Session {
     let timing = Timing {
         wait,
         ..Timing::default()
@@ -13,6 +18,9 @@ pub async fn launch(wait: Duration) -> Session {
         .timing(timing);
     if std::env::var("CHARM_CHROME_NO_SANDBOX").is_ok_and(|value| !value.is_empty()) {
         launch = launch.arg("--no-sandbox");
+    }
+    if let Some(url) = url {
+        launch = launch.url(url);
     }
     Session::launch(launch).await.expect("launch")
 }
@@ -25,11 +33,23 @@ fn page(port: u16) -> String {
     )
 }
 
+pub static STARTS: AtomicUsize = AtomicUsize::new(0);
+
 const FRAME: &str = "<button id=inner onclick=\"document.getElementById('fout').textContent='clicked'\">inner</button><div id=fout></div>";
 
 fn respond(path: &str, port: u16) -> (&'static str, String) {
     match path {
         "/" => ("text/html", page(port)),
+        "/start" => {
+            STARTS.fetch_add(1, Ordering::SeqCst);
+            ("text/html", "<title>start</title>".to_owned())
+        }
+        "/tall" => (
+            "text/html",
+            format!(
+                "<div style=\"height:3000px\"></div><iframe id=cross src=\"http://localhost:{port}/frame\"></iframe>"
+            ),
+        ),
         "/frame" => ("text/html", FRAME.to_owned()),
         "/api" => ("application/json", "{\"ok\":true}".to_owned()),
         "/data" => ("text/plain", "payload-123".to_owned()),

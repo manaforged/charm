@@ -3,6 +3,7 @@ use crate::session::Session;
 use serde_json::{Value, json};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub enum MouseButton {
     #[default]
     Left,

@@ -113,7 +113,7 @@ async fn emit(server: &mut WebSocketStream<TcpStream>, message: Value) {
 async fn fetch_ack_assigns_pauses_to_the_accepted_filter() {
     let (mut transport, mut server) = connection().await;
     let (armed, ()) = tokio::join!(
-        transport.arm_auth("page", "user".into(), "pass".into()),
+        transport.arm_auth(Some("page"), "user".into(), "pass".into()),
         async {
             let command = receive(&mut server).await;
             assert_eq!(command["method"], "Fetch.enable");
@@ -196,7 +196,7 @@ async fn command_deadline_comes_from_timing() {
 #[tokio::test]
 async fn forbidden_methods_are_refused_and_sent_is_public() {
     let (mut transport, mut server) = connection().await;
-    for method in FORBIDDEN_METHODS {
+    for &method in FORBIDDEN_METHODS {
         let refused = transport.send(method, json!({}), None).await;
         assert!(matches!(refused, Err(Error::Blocked(name)) if name == method));
     }
@@ -220,4 +220,53 @@ async fn forbidden_methods_are_refused_and_sent_is_public() {
             .iter()
             .all(|method| !transport.sent().contains(*method))
     );
+}
+
+#[tokio::test]
+async fn a_full_event_queue_drops_the_oldest_instead_of_failing() {
+    let (mut transport, mut server) = connection().await;
+    let flood = async {
+        let command = receive(&mut server).await;
+        for n in 0..5000 {
+            emit(
+                &mut server,
+                json!({"method": "Network.dataReceived", "params": {"n": n}}),
+            )
+            .await;
+        }
+        emit(
+            &mut server,
+            json!({"id": command["id"], "result": {"value": 1}}),
+        )
+        .await;
+    };
+    let (answered, ()) = tokio::join!(
+        transport.send("Runtime.evaluate", json!({"expression": "1"}), None),
+        flood
+    );
+    answered.expect("a full queue does not fail the call");
+    assert_eq!(transport.dropped_events(), 5000 - 4096);
+    let events = transport.pump_then_take().await.expect("take events");
+    assert_eq!(events.len(), 4096);
+    assert_eq!(events[0]["params"]["n"], 5000 - 4096);
+}
+
+#[tokio::test]
+async fn target_methods_that_bypass_the_guard_are_refused() {
+    let (mut transport, _server) = connection().await;
+    for method in [
+        "Target.sendMessageToTarget",
+        "Target.exposeDevToolsProtocol",
+        "Target.autoAttachRelated",
+    ] {
+        let refused = transport.send(method, json!({}), None).await;
+        assert!(matches!(refused, Err(Error::Blocked(_))), "{method}");
+    }
+    let unflattened = transport
+        .send("Target.attachToTarget", json!({"targetId": "t"}), None)
+        .await;
+    assert!(matches!(
+        unflattened,
+        Err(Error::Blocked("Target.attachToTarget"))
+    ));
 }

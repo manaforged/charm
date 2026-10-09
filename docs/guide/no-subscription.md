@@ -29,7 +29,7 @@ charm leaves all three off, so the page runs with that reporting off. The guaran
 ```rust
 use charm::FORBIDDEN_METHODS;
 
-for method in FORBIDDEN_METHODS {
+for &method in FORBIDDEN_METHODS {
     assert!(!session.sent().contains(method), "{method} was sent");
 }
 ```

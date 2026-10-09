@@ -2,9 +2,9 @@ use crate::error::Error;
 use crate::session::Session;
 use serde_json::Value;
 use std::time::{Duration, Instant};
-use tokio::time::sleep;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub enum LoadState {
     #[default]
     Load,
@@ -60,7 +60,7 @@ impl Session {
             if Instant::now() >= deadline {
                 return Err(Error::Timeout(format!("{expression} {last}")));
             }
-            sleep(self.timing().poll).await;
+            self.idle(self.timing().poll).await?;
         }
     }
 
@@ -84,6 +84,6 @@ impl Session {
     }
 
     pub async fn wait_for_timeout(&mut self, duration: Duration) {
-        sleep(duration).await;
+        drop(self.idle(duration).await);
     }
 }

@@ -85,7 +85,7 @@ async fn main() -> Result<(), charm::Error> {
         String::from_utf8_lossy(&body)
     );
 
-    for method in FORBIDDEN_METHODS {
+    for &method in FORBIDDEN_METHODS {
         assert!(!session.sent().contains(method), "{method} was sent");
     }
     session.close().await

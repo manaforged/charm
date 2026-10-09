@@ -284,6 +284,8 @@
 | <code>async wait_for_response(&amp;mut self, url: <a href="#urlmatch">UrlMatch</a>) -&gt; Result&lt;<a href="#observedresponse">ObservedResponse</a>, <a href="#error">Error</a>&gt;</code> |  |
 | <code>async add_script_tag(&amp;mut self, tag: <a href="#scripttag">ScriptTag</a>) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>async content(&amp;mut self) -&gt; Result&lt;String, <a href="#error">Error</a>&gt;</code> |  |
+| <code>async goto(&amp;mut self, url: &amp;str) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+| <code>async open(&amp;mut self, url: &amp;str) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>async reload(&amp;mut self) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>async screenshot(&amp;mut self, options: <a href="#screenshotoptions">ScreenshotOptions</a>) -&gt; Result&lt;Vec&lt;u8&gt;, <a href="#error">Error</a>&gt;</code> |  |
 | <code>async title(&amp;mut self) -&gt; Result&lt;String, <a href="#error">Error</a>&gt;</code> |  |
@@ -291,12 +293,11 @@
 | <code>async block_urls(&amp;mut self, urls: &amp;[String]) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>async browser_send(&amp;mut self, method: &amp;str, params: Value) -&gt; Result&lt;Value, <a href="#error">Error</a>&gt;</code> |  |
 | <code>async close(self) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+| <code>dropped_events(&amp;self) -&gt; u64</code> |  |
 | <code>async evaluate(&amp;mut self, expression: &amp;str) -&gt; Result&lt;Value, <a href="#error">Error</a>&gt;</code> |  |
 | <code>exited(&amp;mut self) -&gt; bool</code> |  |
-| <code>async goto(&amp;mut self, url: &amp;str) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>async launch(launch: <a href="#launch">Launch</a>) -&gt; Result&lt;Self, <a href="#error">Error</a>&gt;</code> |  |
 | <code>async network_on(&amp;mut self) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
-| <code>async open(&amp;mut self, url: &amp;str) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>async send(&amp;mut self, method: &amp;str, params: Value) -&gt; Result&lt;Value, <a href="#error">Error</a>&gt;</code> |  |
 | <code>sent(&amp;self) -&gt; &amp;BTreeSet&lt;String&gt;</code> |  |
 | <code>async take_events(&amp;mut self) -&gt; Result&lt;Vec&lt;Value&gt;, <a href="#error">Error</a>&gt;</code> |  |
@@ -375,8 +376,11 @@
 | <code>Assertion::expected: String</code> |  |
 | <code>Assertion::received: String</code> |  |
 | <code>Assertion::selector: Option&lt;<a href="#selector">Selector</a>&gt;</code> |  |
-| <code>Exited::status: String</code> |  |
+| <code>Exited::code: Option&lt;i32&gt;</code> |  |
 | <code>Exited::stderr: String</code> |  |
+| <code>NotActionable::covered_by: Option&lt;String&gt;</code> |  |
+| <code>NotActionable::reason: Option&lt;<a href="#blocker">Blocker</a>&gt;</code> |  |
+| <code>NotActionable::selector: <a href="#selector">Selector</a></code> |  |
 | <code>Protocol::message: String</code> |  |
 | <code>Protocol::method: String</code> |  |
 | <code>Spawn::path: PathBuf</code> |  |
@@ -388,11 +392,14 @@
 | --- | --- |
 | <code>Assertion</code> |  |
 | <code>Blocked(&amp;'static str)</code> |  |
+| <code>Closed</code> |  |
 | <code>Connect(String)</code> |  |
 | <code>Exited</code> |  |
+| <code>Frame(String)</code> |  |
 | <code>Io(Error)</code> |  |
 | <code>Json(Error)</code> |  |
 | <code>MissingExe</code> |  |
+| <code>NotActionable</code> |  |
 | <code>Protocol</code> |  |
 | <code>Spawn</code> |  |
 | <code>Timeout(String)</code> |  |
@@ -609,7 +616,7 @@
 
 ### `FORBIDDEN_METHODS`
 
-<pre>pub const <a href="#forbidden_methods">FORBIDDEN_METHODS</a>: [&amp;str; 3]</pre>
+<pre>pub const <a href="#forbidden_methods">FORBIDDEN_METHODS</a>: &amp;[&amp;str]</pre>
 
 
 ---

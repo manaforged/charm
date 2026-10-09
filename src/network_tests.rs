@@ -11,3 +11,11 @@ fn url_matches_follow_exact_contains_and_glob_rules() {
     assert!(!UrlMatch::Glob("https://shop.test/*".into()).matches(url));
     assert!(UrlMatch::Glob("https://shop.test/**".into()).matches(url));
 }
+
+#[test]
+fn a_backtracking_glob_finishes_quickly() {
+    let text = format!("https://x.test/{}", "a".repeat(4000));
+    let started = std::time::Instant::now();
+    assert!(!UrlMatch::Glob("**a*a*a*a*a*a*a*a*b".into()).matches(&text));
+    assert!(started.elapsed() < std::time::Duration::from_millis(200));
+}

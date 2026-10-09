@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 use std::time::Instant;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum UrlMatch {
     Exact(String),
     Contains(String),
@@ -28,22 +29,54 @@ impl UrlMatch {
 }
 
 fn glob_match(pattern: &[char], text: &[char]) -> bool {
-    match pattern.split_first() {
-        None => text.is_empty(),
-        Some(('*', rest)) if rest.first() == Some(&'*') => {
-            let tail = &rest[1..];
-            (0..=text.len()).any(|skip| glob_match(tail, &text[skip..]))
+    let (mut at, mut to) = (0, 0);
+    let mut star: Option<(usize, usize)> = None;
+    let mut globstar: Option<(usize, usize)> = None;
+    while let Some(&current) = text.get(to) {
+        match pattern.get(at) {
+            Some('*') if pattern.get(at + 1) == Some(&'*') => {
+                at += 2;
+                globstar = Some((at, to));
+                star = None;
+                continue;
+            }
+            Some('*') => {
+                at += 1;
+                star = Some((at, to));
+                continue;
+            }
+            Some('?') => {
+                at += 1;
+                to += 1;
+                continue;
+            }
+            Some(literal) if *literal == current => {
+                at += 1;
+                to += 1;
+                continue;
+            }
+            _ => {}
         }
-        Some(('*', rest)) => {
-            let span = text.iter().take_while(|c| **c != '/').count();
-            (0..=span).any(|skip| glob_match(rest, &text[skip..]))
+        match (star, globstar) {
+            (Some((resume, from)), _) if text.get(from) != Some(&'/') => {
+                star = Some((resume, from + 1));
+                (at, to) = (resume, from + 1);
+            }
+            (_, Some((resume, from))) => {
+                star = None;
+                globstar = Some((resume, from + 1));
+                (at, to) = (resume, from + 1);
+            }
+            _ => return false,
         }
-        Some(('?', rest)) => !text.is_empty() && glob_match(rest, &text[1..]),
-        Some((c, rest)) => text.first() == Some(c) && glob_match(rest, &text[1..]),
     }
+    pattern
+        .get(at..)
+        .is_some_and(|rest| rest.iter().all(|c| *c == '*'))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct ObservedRequest {
     pub request_id: String,
     pub url: String,
@@ -53,6 +86,7 @@ pub struct ObservedRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct ObservedResponse {
     pub request_id: String,
     pub url: String,
@@ -62,6 +96,7 @@ pub struct ObservedResponse {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum SameSite {
     Strict,
     Lax,

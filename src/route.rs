@@ -7,6 +7,7 @@ use serde_json::{Value, json};
 use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
 pub enum ErrorReason {
     Failed,
     Aborted,
@@ -25,6 +26,7 @@ pub enum ErrorReason {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum RouteAction {
     Abort(ErrorReason),
     Fulfill {

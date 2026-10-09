@@ -3,6 +3,7 @@ use std::io;
 use std::path::PathBuf;
 
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum Error {
     #[error("refused CDP method {0}: subscription surface")]
     Blocked(&'static str),
@@ -14,14 +15,24 @@ pub enum Error {
         #[source]
         source: io::Error,
     },
-    #[error("browser exited with {status} before DevTools was ready: {stderr}")]
-    Exited { status: String, stderr: String },
+    #[error("browser exited with code {} before DevTools was ready: {stderr}", code.map_or_else(|| "none".to_string(), |c| c.to_string()))]
+    Exited { code: Option<i32>, stderr: String },
+    #[error("CDP websocket closed")]
+    Closed,
     #[error("expected {expected}, received {received}{}", selector.as_ref().map(|s| format!(" ({s:?})")).unwrap_or_default())]
     Assertion {
         expected: String,
         received: String,
         selector: Option<Selector>,
     },
+    #[error("not actionable ({reason:?}{}): {selector:?}", covered_by.as_ref().map(|c| format!(", covered by {c}")).unwrap_or_default())]
+    NotActionable {
+        reason: Option<crate::dom::Blocker>,
+        covered_by: Option<String>,
+        selector: Selector,
+    },
+    #[error("frame: {0}")]
+    Frame(String),
     #[error("{0}")]
     Connect(String),
     #[error("{method}: {message}")]
