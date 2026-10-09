@@ -27,6 +27,7 @@ pub fn charm::Launch::new(exe: impl core::convert::Into<std::path::PathBuf>) -> 
 pub fn charm::Launch::offscreen(self) -> Self
 pub fn charm::Launch::profile(self, dir: impl core::convert::Into<std::path::PathBuf>) -> Self
 pub fn charm::Launch::proxy(self, url: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn charm::Launch::timing(self, timing: charm::Timing) -> Self
 pub fn charm::Launch::url(self, url: impl core::convert::Into<alloc::string::String>) -> Self
 impl core::clone::Clone for charm::Launch
 impl core::fmt::Debug for charm::Launch
@@ -44,7 +45,25 @@ pub async fn charm::Session::launch(launch: charm::Launch) -> core::result::Resu
 pub async fn charm::Session::network_on(&mut self) -> core::result::Result<(), charm::Error>
 pub async fn charm::Session::open(&mut self, url: &str) -> core::result::Result<(), charm::Error>
 pub async fn charm::Session::send(&mut self, method: &str, params: serde_json::value::Value) -> core::result::Result<serde_json::value::Value, charm::Error>
+pub fn charm::Session::sent(&self) -> &alloc::collections::btree::set::BTreeSet<alloc::string::String>
 pub async fn charm::Session::set_cookies(&mut self, cookies: serde_json::value::Value) -> core::result::Result<(), charm::Error>
 pub async fn charm::Session::take_events(&mut self) -> core::result::Result<alloc::vec::Vec<serde_json::value::Value>, charm::Error>
 impl core::ops::drop::Drop for charm::Session
+pub struct charm::Timing
+pub charm::Timing::close: core::time::Duration
+pub charm::Timing::command: core::time::Duration
+pub charm::Timing::connect: core::time::Duration
+pub charm::Timing::connect_poll: core::time::Duration
+pub charm::Timing::drain: core::time::Duration
+pub charm::Timing::navigate: core::time::Duration
+pub charm::Timing::poll: core::time::Duration
+pub charm::Timing::settle: core::time::Duration
+impl core::clone::Clone for charm::Timing
+impl core::cmp::Eq for charm::Timing
+impl core::cmp::PartialEq for charm::Timing
+impl core::default::Default for charm::Timing
+impl core::fmt::Debug for charm::Timing
+impl core::marker::Copy for charm::Timing
+impl core::marker::StructuralPartialEq for charm::Timing
+pub const charm::FORBIDDEN_METHODS: [&str; 3]
 pub fn charm::resolve() -> core::option::Option<std::path::PathBuf>

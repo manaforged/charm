@@ -4,8 +4,10 @@
 | --- | --- | --- |
 | [`Launch`](#launch) | struct |  |
 | [`Session`](#session) | struct |  |
+| [`Timing`](#timing) | struct |  |
 | [`Error`](#error) | enum |  |
 | [`resolve`](#resolve) | fn |  |
+| [`FORBIDDEN_METHODS`](#forbidden_methods) | const |  |
 
 ## Structs
 
@@ -21,6 +23,7 @@
 | <code>offscreen(self) -&gt; Self</code> |  |
 | <code>profile(self, dir: impl Into&lt;PathBuf&gt;) -&gt; Self</code> |  |
 | <code>proxy(self, url: impl Into&lt;String&gt;) -&gt; Self</code> |  |
+| <code>timing(self, timing: <a href="#timing">Timing</a>) -&gt; Self</code> |  |
 | <code>url(self, url: impl Into&lt;String&gt;) -&gt; Self</code> |  |
 
 **Trait implementations:** <code>Clone</code>, <code>Debug</code>
@@ -44,10 +47,29 @@
 | <code>async network_on(&amp;mut self) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>async open(&amp;mut self, url: &amp;str) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>async send(&amp;mut self, method: &amp;str, params: Value) -&gt; Result&lt;Value, <a href="#error">Error</a>&gt;</code> |  |
+| <code>sent(&amp;self) -&gt; &amp;BTreeSet&lt;String&gt;</code> |  |
 | <code>async set_cookies(&amp;mut self, cookies: Value) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>async take_events(&amp;mut self) -&gt; Result&lt;Vec&lt;Value&gt;, <a href="#error">Error</a>&gt;</code> |  |
 
 **Trait implementations:** <code>Drop</code>
+
+
+### `Timing`
+
+**Fields**
+
+| Field | Description |
+| --- | --- |
+| <code>close: Duration</code> |  |
+| <code>command: Duration</code> |  |
+| <code>connect: Duration</code> |  |
+| <code>connect_poll: Duration</code> |  |
+| <code>drain: Duration</code> |  |
+| <code>navigate: Duration</code> |  |
+| <code>poll: Duration</code> |  |
+| <code>settle: Duration</code> |  |
+
+**Trait implementations:** <code>Clone</code>, <code>Eq</code>, <code>PartialEq</code>, <code>Default</code>, <code>Debug</code>, <code>Copy</code>, <code>StructuralPartialEq</code>
 
 
 ## Enums
@@ -85,6 +107,13 @@
 ### `resolve`
 
 <pre>pub fn <a href="#resolve">resolve</a>() -&gt; Option&lt;PathBuf&gt;</pre>
+
+
+## Constants
+
+### `FORBIDDEN_METHODS`
+
+<pre>pub const <a href="#forbidden_methods">FORBIDDEN_METHODS</a>: [&amp;str; 3]</pre>
 
 
 ---

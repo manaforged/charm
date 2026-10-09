@@ -1,3 +1,4 @@
+use crate::Timing;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
@@ -8,6 +9,7 @@ pub struct Launch {
     start_url: String,
     offscreen: bool,
     proxy: Option<String>,
+    timing: Timing,
 }
 
 impl Launch {
@@ -20,6 +22,7 @@ impl Launch {
             start_url: "about:blank".into(),
             offscreen: false,
             proxy: None,
+            timing: Timing::default(),
         }
     }
 
@@ -54,6 +57,16 @@ impl Launch {
             self.proxy = Some(url);
         }
         self
+    }
+
+    #[must_use]
+    pub fn timing(mut self, timing: Timing) -> Self {
+        self.timing = timing;
+        self
+    }
+
+    pub(crate) fn timings(&self) -> Timing {
+        self.timing
     }
 
     pub(crate) fn login(&self) -> Option<(String, String)> {

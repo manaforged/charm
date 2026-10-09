@@ -1,4 +1,5 @@
 use super::{ReplyKind, Transport, auth_reply, blocked, matches_url};
+use crate::{Error, FORBIDDEN_METHODS, Timing};
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{Value, json};
 use std::time::Duration;
@@ -72,13 +73,20 @@ fn url_pattern_matching_follows_cdp_wildcards() {
 }
 
 async fn connection() -> (Transport, WebSocketStream<TcpStream>) {
+    connection_with(Timing::default()).await
+}
+
+async fn connection_with(timing: Timing) -> (Transport, WebSocketStream<TcpStream>) {
     let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind CDP");
     let address = listener.local_addr().expect("CDP address");
     let (client, server) = tokio::join!(connect_async(format!("ws://{address}")), async {
         let (stream, _) = listener.accept().await.expect("accept CDP");
         accept_async(stream).await.expect("accept websocket")
     });
-    (Transport::new(client.expect("connect CDP").0), server)
+    (
+        Transport::new(client.expect("connect CDP").0, timing),
+        server,
+    )
 }
 
 async fn receive(server: &mut WebSocketStream<TcpStream>) -> Value {
@@ -166,4 +174,49 @@ async fn fetch_ack_assigns_pauses_to_the_accepted_filter() {
     });
     pumped.expect("continue auth-only pause");
     assert!(transport.take_events().is_empty());
+}
+
+#[tokio::test]
+async fn command_deadline_comes_from_timing() {
+    let timing = Timing {
+        command: Duration::from_millis(50),
+        ..Timing::default()
+    };
+    let (mut transport, _server) = connection_with(timing).await;
+    let sent = timeout(
+        Duration::from_secs(2),
+        transport.send("Runtime.evaluate", json!({ "expression": "1" }), None),
+    )
+    .await
+    .expect("the configured deadline ends the command");
+    assert!(matches!(sent, Err(Error::Timeout(ref method)) if method == "Runtime.evaluate"));
+}
+
+#[tokio::test]
+async fn forbidden_methods_are_refused_and_sent_is_public() {
+    let (mut transport, mut server) = connection().await;
+    for method in FORBIDDEN_METHODS {
+        let refused = transport.send(method, json!({}), None).await;
+        assert!(matches!(refused, Err(Error::Blocked(name)) if name == method));
+    }
+    let reply = async {
+        let frame = server.next().await.expect("command frame").expect("frame");
+        let id = serde_json::from_str::<Value>(frame.to_text().expect("text")).expect("json")["id"]
+            .clone();
+        server
+            .send(Message::text(json!({ "id": id, "result": {} }).to_string()))
+            .await
+            .expect("reply");
+    };
+    let (sent, ()) = tokio::join!(
+        transport.send("Runtime.evaluate", json!({ "expression": "1" }), None),
+        reply
+    );
+    sent.expect("Runtime.evaluate answered");
+    assert!(transport.sent().contains("Runtime.evaluate"));
+    assert!(
+        FORBIDDEN_METHODS
+            .iter()
+            .all(|method| !transport.sent().contains(*method))
+    );
 }

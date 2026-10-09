@@ -1,34 +1,31 @@
-use crate::Error;
 #[cfg(test)]
 use crate::intercept::matches_url;
 use crate::intercept::{Pattern, ReplyKind, auth_reply};
+use crate::{Error, Timing};
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
-use std::time::Duration;
 use tokio::net::TcpStream;
 use tokio::time::{Instant, timeout_at};
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
-const COMMAND_DEADLINE: Duration = Duration::from_secs(30);
-const PUMP: Duration = Duration::from_millis(25);
 const MAX_PENDING: usize = 1024;
 const MAX_EVENTS: usize = 4096;
 
+pub const FORBIDDEN_METHODS: [&str; 3] = ["Runtime.enable", "Page.enable", "Target.setAutoAttach"];
+
 pub(crate) fn blocked(method: &str) -> Option<&'static str> {
-    match method {
-        "Runtime.enable" => Some("Runtime.enable"),
-        "Page.enable" => Some("Page.enable"),
-        "Target.setAutoAttach" => Some("Target.setAutoAttach"),
-        _ => None,
-    }
+    FORBIDDEN_METHODS
+        .iter()
+        .copied()
+        .find(|forbidden| *forbidden == method)
 }
 
 pub(crate) struct Transport {
     ws: WebSocketStream<MaybeTlsStream<TcpStream>>,
     next_id: u64,
-    #[cfg(test)]
+    timing: Timing,
     sent: BTreeSet<String>,
     events: Vec<Value>,
     auth: Option<Auth>,
@@ -46,11 +43,11 @@ struct Auth {
 }
 
 impl Transport {
-    pub(crate) fn new(ws: WebSocketStream<MaybeTlsStream<TcpStream>>) -> Self {
+    pub(crate) fn new(ws: WebSocketStream<MaybeTlsStream<TcpStream>>, timing: Timing) -> Self {
         Self {
             ws,
             next_id: 1,
-            #[cfg(test)]
+            timing,
             sent: BTreeSet::new(),
             events: Vec::new(),
             auth: None,
@@ -92,7 +89,6 @@ impl Transport {
         self.ws
             .send(Message::Text(frame.to_string().into()))
             .await?;
-        #[cfg(test)]
         self.sent.insert(method.to_string());
         Ok(id)
     }
@@ -223,7 +219,6 @@ impl Transport {
         Ok(())
     }
 
-    #[cfg(test)]
     pub(crate) fn sent(&self) -> &BTreeSet<String> {
         &self.sent
     }
@@ -268,7 +263,7 @@ impl Transport {
         } else {
             method
         };
-        let deadline = Instant::now() + COMMAND_DEADLINE;
+        let deadline = Instant::now() + self.timing.command;
         timeout_at(
             deadline,
             self.command(wire_method, params, session_id, patterns),
@@ -314,14 +309,14 @@ impl Transport {
     }
 
     pub(crate) async fn pump(&mut self) -> Result<(), Error> {
-        let deadline = Instant::now() + COMMAND_DEADLINE;
+        let deadline = Instant::now() + self.timing.command;
         timeout_at(deadline, self.drain())
             .await
             .map_err(|_elapsed| Error::Timeout("CDP pump".into()))?
     }
 
     async fn drain(&mut self) -> Result<(), Error> {
-        let deadline = Instant::now() + PUMP;
+        let deadline = Instant::now() + self.timing.drain;
         loop {
             let frame = match timeout_at(deadline, self.ws.next()).await {
                 Err(_elapsed) => return Ok(()),

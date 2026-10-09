@@ -1,9 +1,9 @@
 use crate::argv::Launch;
 use crate::error::Error;
 use crate::port::websocket_url;
+use crate::timing::Timing;
 use crate::transport::Transport;
 use serde_json::{Value, json};
-#[cfg(test)]
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -13,15 +13,13 @@ use tokio::process::{Child, Command};
 use tokio::time::sleep;
 use tokio_tungstenite::connect_async;
 
-const CONNECT_DEADLINE: Duration = Duration::from_secs(45);
-const CLOSE_WAIT: Duration = Duration::from_millis(1500);
-
 pub struct Session {
     transport: Transport,
     session_id: String,
     child: Child,
     user_data_dir: PathBuf,
     ephemeral: bool,
+    timing: Timing,
 }
 
 impl Session {
@@ -43,7 +41,14 @@ impl Session {
             path: launch.exe().to_path_buf(),
             source,
         })?;
-        let mut session = attach(child, user_data_dir, ephemeral, launch.start_url()).await?;
+        let mut session = attach(
+            child,
+            user_data_dir,
+            ephemeral,
+            launch.start_url(),
+            launch.timings(),
+        )
+        .await?;
         if let Some((user, pass)) = launch.login() {
             let id = session.session_id.clone();
             session.transport.arm_auth(&id, user, pass).await?;
@@ -51,7 +56,7 @@ impl Session {
         Ok(session)
     }
 
-    #[cfg(test)]
+    #[must_use]
     pub fn sent(&self) -> &BTreeSet<String> {
         self.transport.sent()
     }
@@ -147,7 +152,7 @@ impl Session {
     }
 
     pub async fn goto(&mut self, url: &str) -> Result<(), Error> {
-        let deadline = Instant::now() + Duration::from_secs(15);
+        let deadline = Instant::now() + self.timing.navigate;
         loop {
             let nav = self.send("Page.navigate", json!({ "url": url })).await?;
             if let Some(error) = nav.get("errorText").and_then(Value::as_str)
@@ -158,7 +163,7 @@ impl Session {
                     message: error.to_string(),
                 });
             }
-            if self.url_left_blank(Duration::from_millis(2500)).await {
+            if self.url_left_blank(self.timing.settle).await {
                 break;
             }
             if Instant::now() >= deadline {
@@ -176,7 +181,7 @@ impl Session {
             {
                 return true;
             }
-            sleep(Duration::from_millis(120)).await;
+            sleep(self.timing.poll).await;
         }
         false
     }
@@ -188,7 +193,7 @@ impl Session {
             {
                 return Ok(());
             }
-            sleep(Duration::from_millis(120)).await;
+            sleep(self.timing.poll).await;
         }
         Err(Error::Timeout("Page.navigate".into()))
     }
@@ -196,9 +201,9 @@ impl Session {
     pub async fn close(mut self) -> Result<(), Error> {
         drop(self.transport.send("Browser.close", json!({}), None).await);
         self.transport.close().await;
-        drop(tokio::time::timeout(CLOSE_WAIT, self.child.wait()).await);
+        drop(tokio::time::timeout(self.timing.close, self.child.wait()).await);
         drop(self.child.kill().await);
-        sleep(Duration::from_millis(150)).await;
+        sleep(self.timing.poll).await;
         if self.ephemeral {
             drop(fs::remove_dir_all(&self.user_data_dir).await);
         }
@@ -211,14 +216,16 @@ async fn attach(
     user_data_dir: PathBuf,
     ephemeral: bool,
     start_url: &str,
+    timing: Timing,
 ) -> Result<Session, Error> {
-    match handshake(&user_data_dir, start_url).await {
+    match handshake(&user_data_dir, start_url, timing).await {
         Ok((transport, session_id)) => Ok(Session {
             transport,
             session_id,
             child,
             user_data_dir,
             ephemeral,
+            timing,
         }),
         Err(error) => {
             drop(child.kill().await);
@@ -230,8 +237,12 @@ async fn attach(
     }
 }
 
-async fn handshake(user_data_dir: &Path, start_url: &str) -> Result<(Transport, String), Error> {
-    let mut transport = connect_transport(user_data_dir).await?;
+async fn handshake(
+    user_data_dir: &Path,
+    start_url: &str,
+    timing: Timing,
+) -> Result<(Transport, String), Error> {
+    let mut transport = connect_transport(user_data_dir, timing).await?;
     let target_id = create_target(&mut transport, start_url).await?;
     let attached = transport
         .send(
@@ -248,18 +259,18 @@ async fn handshake(user_data_dir: &Path, start_url: &str) -> Result<(Transport, 
     Ok((transport, session_id))
 }
 
-async fn connect_transport(user_data_dir: &Path) -> Result<Transport, Error> {
-    let deadline = Instant::now() + CONNECT_DEADLINE;
+async fn connect_transport(user_data_dir: &Path, timing: Timing) -> Result<Transport, Error> {
+    let deadline = Instant::now() + timing.connect;
     let mut last = Error::Connect("DevTools endpoint missing".into());
     while Instant::now() < deadline {
         match read_ws_url(user_data_dir).await {
             Ok(url) => match connect_async(&url).await {
-                Ok((ws, _)) => return Ok(Transport::new(ws)),
+                Ok((ws, _)) => return Ok(Transport::new(ws, timing)),
                 Err(error) => last = Error::from(error),
             },
             Err(error) => last = error,
         }
-        sleep(Duration::from_millis(250)).await;
+        sleep(timing.connect_poll).await;
     }
     Err(last)
 }
