@@ -1,0 +1,296 @@
+use crate::argv::Launch;
+use crate::error::Error;
+use crate::port::websocket_url;
+use crate::transport::Transport;
+use serde_json::{Value, json};
+#[cfg(test)]
+use std::collections::BTreeSet;
+use std::path::{Path, PathBuf};
+use std::process::Stdio;
+use std::time::{Duration, Instant};
+use tokio::fs;
+use tokio::process::{Child, Command};
+use tokio::time::sleep;
+use tokio_tungstenite::connect_async;
+
+const CONNECT_DEADLINE: Duration = Duration::from_secs(45);
+const CLOSE_WAIT: Duration = Duration::from_millis(1500);
+
+pub struct Session {
+    transport: Transport,
+    session_id: String,
+    child: Child,
+    user_data_dir: PathBuf,
+    ephemeral: bool,
+}
+
+impl Session {
+    pub async fn launch(launch: Launch) -> Result<Self, Error> {
+        let ephemeral = launch.user_data_dir().is_none();
+        let user_data_dir = match launch.user_data_dir() {
+            Some(dir) => dir.to_path_buf(),
+            None => tempfile::tempdir()?.keep(),
+        };
+        fs::create_dir_all(&user_data_dir).await?;
+        let mut command = Command::new(launch.exe());
+        command
+            .args(launch.args(&user_data_dir))
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .kill_on_drop(true);
+        let child = command.spawn().map_err(|source| Error::Spawn {
+            path: launch.exe().to_path_buf(),
+            source,
+        })?;
+        let mut session = attach(child, user_data_dir, ephemeral, launch.start_url()).await?;
+        if let Some((user, pass)) = launch.login() {
+            let id = session.session_id.clone();
+            session.transport.arm_auth(&id, user, pass).await?;
+        }
+        Ok(session)
+    }
+
+    #[cfg(test)]
+    pub fn sent(&self) -> &BTreeSet<String> {
+        self.transport.sent()
+    }
+
+    pub async fn send(&mut self, method: &str, params: Value) -> Result<Value, Error> {
+        self.transport
+            .send(method, params, Some(&self.session_id))
+            .await
+    }
+
+    pub async fn browser_send(&mut self, method: &str, params: Value) -> Result<Value, Error> {
+        self.transport.send(method, params, None).await
+    }
+
+    pub async fn cookies(&mut self) -> Result<Value, Error> {
+        self.browser_send("Storage.getCookies", json!({})).await
+    }
+
+    pub async fn network_on(&mut self) -> Result<(), Error> {
+        drop(self.send("Network.enable", json!({})).await?);
+        Ok(())
+    }
+
+    pub async fn block_urls(&mut self, urls: &[String]) -> Result<(), Error> {
+        drop(
+            self.send("Network.setBlockedURLs", json!({ "urls": urls }))
+                .await?,
+        );
+        Ok(())
+    }
+
+    pub async fn take_events(&mut self) -> Result<Vec<Value>, Error> {
+        self.transport.pump().await?;
+        Ok(self.transport.take_events())
+    }
+
+    pub async fn set_cookies(&mut self, cookies: Value) -> Result<(), Error> {
+        drop(
+            self.send("Network.setCookies", json!({ "cookies": cookies }))
+                .await?,
+        );
+        Ok(())
+    }
+
+    pub fn exited(&mut self) -> bool {
+        matches!(self.child.try_wait(), Ok(Some(_)))
+    }
+
+    pub async fn cookie_named(&mut self, name: &str) -> Result<Option<Value>, Error> {
+        let jar = self.cookies().await?;
+        let Some(list) = jar.get("cookies").and_then(Value::as_array) else {
+            return Ok(None);
+        };
+        Ok(list
+            .iter()
+            .find(|cookie| cookie.get("name").and_then(Value::as_str) == Some(name))
+            .cloned())
+    }
+
+    pub async fn evaluate(&mut self, expression: &str) -> Result<Value, Error> {
+        let result = self
+            .send(
+                "Runtime.evaluate",
+                json!({
+                    "expression": expression,
+                    "returnByValue": true,
+                    "awaitPromise": true,
+                }),
+            )
+            .await?;
+        if let Some(exception) = result.get("exceptionDetails") {
+            return Err(Error::Protocol {
+                method: "Runtime.evaluate".into(),
+                message: exception.to_string(),
+            });
+        }
+        Ok(remote_value(
+            result.get("result").cloned().unwrap_or(Value::Null),
+        ))
+    }
+
+    pub async fn open(&mut self, url: &str) -> Result<(), Error> {
+        let nav = self.send("Page.navigate", json!({ "url": url })).await?;
+        if let Some(error) = nav.get("errorText").and_then(Value::as_str)
+            && error != "net::ERR_ABORTED"
+        {
+            return Err(Error::Protocol {
+                method: "Page.navigate".into(),
+                message: error.to_string(),
+            });
+        }
+        Ok(())
+    }
+
+    pub async fn goto(&mut self, url: &str) -> Result<(), Error> {
+        let deadline = Instant::now() + Duration::from_secs(15);
+        loop {
+            let nav = self.send("Page.navigate", json!({ "url": url })).await?;
+            if let Some(error) = nav.get("errorText").and_then(Value::as_str)
+                && error != "net::ERR_ABORTED"
+            {
+                return Err(Error::Protocol {
+                    method: "Page.navigate".into(),
+                    message: error.to_string(),
+                });
+            }
+            if self.url_left_blank(Duration::from_millis(2500)).await {
+                break;
+            }
+            if Instant::now() >= deadline {
+                break;
+            }
+        }
+        self.wait_ready(deadline).await
+    }
+
+    async fn url_left_blank(&mut self, budget: Duration) -> bool {
+        let deadline = Instant::now() + budget;
+        while Instant::now() < deadline {
+            if let Ok(href) = self.evaluate("location.href").await
+                && href.as_str().is_some_and(|h| h != "about:blank")
+            {
+                return true;
+            }
+            sleep(Duration::from_millis(120)).await;
+        }
+        false
+    }
+
+    async fn wait_ready(&mut self, deadline: Instant) -> Result<(), Error> {
+        while Instant::now() < deadline {
+            if let Ok(state) = self.evaluate("document.readyState").await
+                && matches!(state.as_str(), Some("interactive" | "complete"))
+            {
+                return Ok(());
+            }
+            sleep(Duration::from_millis(120)).await;
+        }
+        Err(Error::Timeout("Page.navigate".into()))
+    }
+
+    pub async fn close(mut self) -> Result<(), Error> {
+        drop(self.transport.send("Browser.close", json!({}), None).await);
+        self.transport.close().await;
+        drop(tokio::time::timeout(CLOSE_WAIT, self.child.wait()).await);
+        drop(self.child.kill().await);
+        sleep(Duration::from_millis(150)).await;
+        if self.ephemeral {
+            drop(fs::remove_dir_all(&self.user_data_dir).await);
+        }
+        Ok(())
+    }
+}
+
+async fn attach(
+    mut child: Child,
+    user_data_dir: PathBuf,
+    ephemeral: bool,
+    start_url: &str,
+) -> Result<Session, Error> {
+    match handshake(&user_data_dir, start_url).await {
+        Ok((transport, session_id)) => Ok(Session {
+            transport,
+            session_id,
+            child,
+            user_data_dir,
+            ephemeral,
+        }),
+        Err(error) => {
+            drop(child.kill().await);
+            if ephemeral {
+                drop(fs::remove_dir_all(&user_data_dir).await);
+            }
+            Err(error)
+        }
+    }
+}
+
+async fn handshake(user_data_dir: &Path, start_url: &str) -> Result<(Transport, String), Error> {
+    let mut transport = connect_transport(user_data_dir).await?;
+    let target_id = create_target(&mut transport, start_url).await?;
+    let attached = transport
+        .send(
+            "Target.attachToTarget",
+            json!({ "targetId": target_id, "flatten": true }),
+            None,
+        )
+        .await?;
+    let session_id = attached
+        .get("sessionId")
+        .and_then(Value::as_str)
+        .ok_or_else(|| Error::Connect("Target.attachToTarget missing sessionId".into()))?
+        .to_string();
+    Ok((transport, session_id))
+}
+
+async fn connect_transport(user_data_dir: &Path) -> Result<Transport, Error> {
+    let deadline = Instant::now() + CONNECT_DEADLINE;
+    let mut last = Error::Connect("DevTools endpoint missing".into());
+    while Instant::now() < deadline {
+        match read_ws_url(user_data_dir).await {
+            Ok(url) => match connect_async(&url).await {
+                Ok((ws, _)) => return Ok(Transport::new(ws)),
+                Err(error) => last = Error::from(error),
+            },
+            Err(error) => last = error,
+        }
+        sleep(Duration::from_millis(250)).await;
+    }
+    Err(last)
+}
+
+async fn read_ws_url(user_data_dir: &Path) -> Result<String, Error> {
+    let path = user_data_dir.join("DevToolsActivePort");
+    let body = fs::read_to_string(&path).await?;
+    websocket_url(&body).ok_or_else(|| Error::Connect("DevToolsActivePort malformed".into()))
+}
+
+async fn create_target(transport: &mut Transport, url: &str) -> Result<String, Error> {
+    let created = transport
+        .send("Target.createTarget", json!({ "url": url }), None)
+        .await?;
+    created
+        .get("targetId")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .ok_or_else(|| Error::Connect("Target.createTarget missing targetId".into()))
+}
+
+fn remote_value(remote: Value) -> Value {
+    remote.get("value").cloned().unwrap_or(remote)
+}
+
+impl Drop for Session {
+    fn drop(&mut self) {
+        drop(self.child.start_kill());
+    }
+}
+
+#[cfg(test)]
+#[path = "session_tests.rs"]
+mod tests;

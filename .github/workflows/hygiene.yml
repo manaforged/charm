@@ -1,0 +1,56 @@
+name: hygiene
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hygiene:
+    if: github.repository == 'manaforged/charm-cdp'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check repository content and commit messages
+        env:
+          HYGIENE_PATTERNS: ${{ secrets.HYGIENE_PATTERNS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          patterns="$RUNNER_TEMP/hygiene.patterns"
+          printf '%s\n' "$HYGIENE_PATTERNS" | sed '/^$/d' > "$patterns"
+          if [ ! -s "$patterns" ]; then
+            echo '::error::Configure the HYGIENE_PATTERNS repository secret.'
+            exit 1
+          fi
+          failed=0
+          scan() {
+            local status=0
+            grep -qiEf "$patterns" "$1" || status=$?
+            if [ "$status" -eq 0 ]; then
+              echo "::error::$2 contains denied text"
+              failed=1
+            elif [ "$status" -ne 1 ]; then
+              exit "$status"
+            fi
+          }
+          while IFS=$'\t' read -r -d '' meta _; do
+            read -r _ type object <<<"$meta"
+            [ "$type" = blob ] || continue
+            git cat-file blob "$object" | strings > "$RUNNER_TEMP/hygiene-content"
+            scan "$RUNNER_TEMP/hygiene-content" "Repository content"
+          done < <(git ls-tree -r -z HEAD)
+          if previous=$(git describe --tags --abbrev=0 --match 'v*' HEAD^ 2>/dev/null); then
+            range="$previous..HEAD"
+          else
+            range=HEAD
+          fi
+          git log --format=%B "$range" > "$RUNNER_TEMP/hygiene-messages"
+          scan "$RUNNER_TEMP/hygiene-messages" "Commit messages"
+          exit "$failed"

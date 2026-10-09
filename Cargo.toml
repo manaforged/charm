@@ -1,0 +1,58 @@
+[package]
+name = "charm-cdp"
+description = "Plain Chrome DevTools Protocol driver for the installed Chrome"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.96"
+authors = ["Thomas Gardiner <thomas@manaforge.tech>"]
+license = "MIT"
+repository = "https://github.com/manaforged/charm-cdp"
+homepage = "https://github.com/manaforged/charm-cdp"
+documentation = "https://docs.rs/charm-cdp"
+readme = "README.md"
+publish = false
+
+[lib]
+name = "charm"
+
+[dependencies]
+futures-util = { version = "0.3", default-features = false, features = ["sink"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync", "fs", "process", "signal", "net", "io-util"] }
+tokio-tungstenite = { version = "0.26", default-features = false, features = ["connect"] }
+tempfile = "3"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["test-util"] }
+
+[lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+unused_qualifications = "deny"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+todo = "deny"
+unimplemented = "deny"
+dbg_macro = "deny"
+disallowed_methods = "deny"
+disallowed_types = "deny"
+disallowed_macros = "deny"
+rc_mutex = "deny"
+unused_result_ok = "deny"
+allow_attributes_without_reason = "deny"
+let_underscore_future = "deny"
+let_underscore_lock = "deny"
+let_underscore_must_use = "deny"
+map_err_ignore = "deny"
+assertions_on_result_states = "deny"
+unwrap_in_result = "deny"
+get_unwrap = "deny"
+ignore_without_reason = "deny"
+should_panic_without_expect = "deny"
+from_over_into = "deny"
+wrong_self_convention = "deny"
+new_without_default = "deny"
+large_enum_variant = "deny"
+must_use_candidate = "warn"
