@@ -1,0 +1,8 @@
+[book]
+title = "charm-cdp"
+src = "."
+language = "en"
+
+[build]
+build-dir = "../target/book"
+create-missing = false

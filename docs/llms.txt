@@ -1,0 +1,10 @@
+# charm-cdp
+
+> Public API reference that truesight generates from the compiler's rustdoc output, except the task names and calls, which come from the task file.
+
+## charm-cdp 0.1.0
+
+- [Every public item, one per line](reference/charm-cdp/api.txt): 50 lines
+- [API overview](reference/charm-cdp/index.html): tasks, modules, features, and examples
+- [API changes by release](reference/charm-cdp/changes.html)
+- [charm](reference/charm-cdp/charm.html): 38 items

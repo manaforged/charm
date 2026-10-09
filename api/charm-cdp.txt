@@ -1,0 +1,50 @@
+pub mod charm
+pub enum charm::Error
+pub charm::Error::Blocked(&'static str)
+pub charm::Error::Connect(alloc::string::String)
+pub charm::Error::Io(core::io::error::Error)
+pub charm::Error::Json(serde_json::error::Error)
+pub charm::Error::MissingExe
+pub charm::Error::Protocol
+pub charm::Error::Protocol::message: alloc::string::String
+pub charm::Error::Protocol::method: alloc::string::String
+pub charm::Error::Spawn
+pub charm::Error::Spawn::path: std::path::PathBuf
+pub charm::Error::Spawn::source: core::io::error::Error
+pub charm::Error::Timeout(alloc::string::String)
+pub charm::Error::Ws(alloc::boxed::Box<tungstenite::error::Error>)
+impl core::convert::From<core::io::error::Error> for charm::Error
+impl core::convert::From<serde_json::error::Error> for charm::Error
+impl core::convert::From<tungstenite::error::Error> for charm::Error
+impl core::error::Error for charm::Error
+impl core::fmt::Debug for charm::Error
+impl core::fmt::Display for charm::Error
+pub struct charm::Launch
+impl charm::Launch
+pub fn charm::Launch::args(&self, user_data_dir: &std::path::Path) -> alloc::vec::Vec<alloc::string::String>
+pub fn charm::Launch::headed(self) -> Self
+pub fn charm::Launch::new(exe: impl core::convert::Into<std::path::PathBuf>) -> Self
+pub fn charm::Launch::offscreen(self) -> Self
+pub fn charm::Launch::profile(self, dir: impl core::convert::Into<std::path::PathBuf>) -> Self
+pub fn charm::Launch::proxy(self, url: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn charm::Launch::url(self, url: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for charm::Launch
+impl core::fmt::Debug for charm::Launch
+pub struct charm::Session
+impl charm::Session
+pub async fn charm::Session::block_urls(&mut self, urls: &[alloc::string::String]) -> core::result::Result<(), charm::Error>
+pub async fn charm::Session::browser_send(&mut self, method: &str, params: serde_json::value::Value) -> core::result::Result<serde_json::value::Value, charm::Error>
+pub async fn charm::Session::close(self) -> core::result::Result<(), charm::Error>
+pub async fn charm::Session::cookie_named(&mut self, name: &str) -> core::result::Result<core::option::Option<serde_json::value::Value>, charm::Error>
+pub async fn charm::Session::cookies(&mut self) -> core::result::Result<serde_json::value::Value, charm::Error>
+pub async fn charm::Session::evaluate(&mut self, expression: &str) -> core::result::Result<serde_json::value::Value, charm::Error>
+pub fn charm::Session::exited(&mut self) -> bool
+pub async fn charm::Session::goto(&mut self, url: &str) -> core::result::Result<(), charm::Error>
+pub async fn charm::Session::launch(launch: charm::Launch) -> core::result::Result<Self, charm::Error>
+pub async fn charm::Session::network_on(&mut self) -> core::result::Result<(), charm::Error>
+pub async fn charm::Session::open(&mut self, url: &str) -> core::result::Result<(), charm::Error>
+pub async fn charm::Session::send(&mut self, method: &str, params: serde_json::value::Value) -> core::result::Result<serde_json::value::Value, charm::Error>
+pub async fn charm::Session::set_cookies(&mut self, cookies: serde_json::value::Value) -> core::result::Result<(), charm::Error>
+pub async fn charm::Session::take_events(&mut self) -> core::result::Result<alloc::vec::Vec<serde_json::value::Value>, charm::Error>
+impl core::ops::drop::Drop for charm::Session
+pub fn charm::resolve() -> core::option::Option<std::path::PathBuf>
