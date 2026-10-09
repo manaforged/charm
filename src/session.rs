@@ -1,5 +1,5 @@
 use crate::argv::{BLANK, Launch, StderrTail, clear_stale_port};
-use crate::error::Error;
+use crate::error::{Error, Fault};
 use crate::port::websocket_url;
 use crate::timing::Timing;
 use crate::transport::Transport;
@@ -21,7 +21,16 @@ pub struct Session {
     timing: Timing,
     _profile: Option<TempDir>,
     frame_sessions: BTreeMap<String, String>,
+    worlds: BTreeMap<String, i64>,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum World {
+    Main,
+    Isolated,
+}
+
+const WORLD_NAME: &str = "charm";
 
 struct Spawned {
     child: Child,
@@ -141,32 +150,83 @@ impl Session {
     }
 
     pub async fn evaluate(&mut self, expression: &str) -> Result<Value, Error> {
-        self.evaluate_in(None, expression).await
+        self.evaluate_in(None, World::Main, expression).await
     }
 
     pub(crate) async fn evaluate_in(
         &mut self,
         session_id: Option<&str>,
+        world: World,
         expression: &str,
     ) -> Result<Value, Error> {
+        let target = session_id.map_or_else(|| self.session_id.clone(), str::to_owned);
         let params = json!({
             "expression": expression,
             "returnByValue": true,
             "awaitPromise": true,
         });
-        let result = match session_id {
-            Some(id) => self.send_on(id, "Runtime.evaluate", params).await?,
-            None => self.send("Runtime.evaluate", params).await?,
+        let result = match world {
+            World::Main => self.send_on(&target, "Runtime.evaluate", params).await?,
+            World::Isolated => self.evaluate_isolated(&target, params).await?,
         };
         if let Some(exception) = result.get("exceptionDetails") {
-            return Err(Error::Protocol {
-                method: "Runtime.evaluate".into(),
-                message: exception.to_string(),
-            });
+            return Err(Error::script(exception));
         }
         Ok(remote_value(
             result.get("result").cloned().unwrap_or(Value::Null),
         ))
+    }
+
+    async fn evaluate_isolated(&mut self, target: &str, params: Value) -> Result<Value, Error> {
+        let cached = self.worlds.get(target).copied();
+        let context = match cached {
+            Some(id) => id,
+            None => self.create_world(target).await?,
+        };
+        match self.evaluate_on(target, context, params.clone()).await {
+            Err(error) if cached.is_some() && error.fault() == Fault::ContextGone => {
+                self.worlds.remove(target);
+                let context = self.create_world(target).await?;
+                self.evaluate_on(target, context, params).await
+            }
+            other => other,
+        }
+    }
+
+    async fn evaluate_on(
+        &mut self,
+        target: &str,
+        context: i64,
+        mut params: Value,
+    ) -> Result<Value, Error> {
+        params["contextId"] = json!(context);
+        self.send_on(target, "Runtime.evaluate", params).await
+    }
+
+    async fn create_world(&mut self, target: &str) -> Result<i64, Error> {
+        let tree = self.send_on(target, "Page.getFrameTree", json!({})).await?;
+        let frame_id = tree
+            .pointer("/frameTree/frame/id")
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+            .ok_or_else(|| Error::Frame("Page.getFrameTree missing frame id".into()))?;
+        let created = self
+            .send_on(
+                target,
+                "Page.createIsolatedWorld",
+                json!({
+                    "frameId": frame_id,
+                    "worldName": WORLD_NAME,
+                    "grantUniveralAccess": false,
+                }),
+            )
+            .await?;
+        let context = created
+            .get("executionContextId")
+            .and_then(Value::as_i64)
+            .ok_or_else(|| Error::Frame("Page.createIsolatedWorld missing context id".into()))?;
+        self.worlds.insert(target.to_owned(), context);
+        Ok(context)
     }
 
     pub(crate) fn transport_mut(&mut self) -> &mut Transport {
@@ -207,6 +267,7 @@ async fn attach(spawned: Spawned) -> Result<Session, Error> {
             timing,
             _profile: profile,
             frame_sessions: BTreeMap::new(),
+            worlds: BTreeMap::new(),
         }),
         Err(error) => {
             drop(child.kill().await);

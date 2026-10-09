@@ -20,7 +20,7 @@ mod wait;
 
 pub use argv::Launch;
 pub use dom::{Actionable, Blocker, BoundingBox, ClickResult};
-pub use error::Error;
+pub use error::{Error, ScriptError};
 pub use exe::resolve;
 pub use expect::{LocatorExpect, PageExpect, expect, expect_page};
 pub use frames::{FrameInfo, FrameLocator};

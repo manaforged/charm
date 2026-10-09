@@ -1,5 +1,5 @@
 use crate::error::Error;
-use crate::session::Session;
+use crate::session::{Session, World};
 use crate::wait::LoadState;
 use serde_json::{Value, json};
 use std::time::Instant;
@@ -78,6 +78,7 @@ impl Session {
         {
             return Err(Error::Protocol {
                 method: "Page.navigate".into(),
+                code: None,
                 message: error.to_string(),
             });
         }
@@ -97,7 +98,7 @@ impl Session {
         let expression = format!("{DOCUMENT_ID} !== {}", serde_json::to_string(before)?);
         let deadline = Instant::now() + self.timing().navigate;
         let waited = match self
-            .poll_expression(&expression, self.timing().navigate)
+            .poll_expression_in(None, World::Isolated, &expression, self.timing().navigate)
             .await
         {
             Ok(_) => {
@@ -114,7 +115,7 @@ impl Session {
 
     async fn evaluate_text(&mut self, expression: &str) -> Result<String, Error> {
         Ok(self
-            .evaluate(expression)
+            .evaluate_in(None, World::Isolated, expression)
             .await?
             .as_str()
             .unwrap_or_default()
@@ -157,6 +158,7 @@ impl Session {
             .and_then(Value::as_str)
             .ok_or_else(|| Error::Protocol {
                 method: "Page.captureScreenshot".into(),
+                code: None,
                 message: "missing data".into(),
             })?;
         crate::network::decode_base64(data, "Page.captureScreenshot")

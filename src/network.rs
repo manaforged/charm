@@ -183,6 +183,7 @@ pub(crate) fn decode_base64(data: &str, method: &str) -> Result<Vec<u8>, Error> 
             _ => {
                 return Err(Error::Protocol {
                     method: method.into(),
+                    code: None,
                     message: "invalid base64 data".into(),
                 });
             }

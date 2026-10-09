@@ -156,6 +156,7 @@ impl Transport {
         if self.pending.len() >= MAX_PENDING {
             return Err(Error::Protocol {
                 method: method.into(),
+                code: None,
                 message: "too many unacknowledged CDP commands".into(),
             });
         }
@@ -175,6 +176,7 @@ impl Transport {
                 if self.held.len() >= MAX_EVENTS {
                     return Err(Error::Protocol {
                         method: "Fetch.enable".into(),
+                        code: None,
                         message: "too many requests waiting for Fetch configuration".into(),
                     });
                 }
@@ -260,6 +262,7 @@ impl Transport {
                 if self.fetch.is_some() {
                     return Err(Error::Protocol {
                         method: method.into(),
+                        code: None,
                         message: "previous Fetch configuration is not acknowledged".into(),
                     });
                 }
@@ -368,10 +371,7 @@ impl Transport {
 
 fn result(msg: &Value, method: &str) -> Result<Value, Error> {
     if let Some(error) = msg.get("error") {
-        return Err(Error::Protocol {
-            method: method.to_string(),
-            message: error.to_string(),
-        });
+        return Err(Error::protocol(method, error));
     }
     Ok(msg.get("result").cloned().unwrap_or(Value::Null))
 }

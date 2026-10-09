@@ -236,6 +236,7 @@ impl Intercept {
                 .and_then(Value::as_str)
                 .ok_or_else(|| Error::Protocol {
                     method: "Fetch.authRequired".into(),
+                    code: None,
                     message: "auth request has no requestId".into(),
                 })?;
             if self.attempted.iter().any(|seen| seen == id) {

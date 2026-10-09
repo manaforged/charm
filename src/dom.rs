@@ -64,13 +64,13 @@ pub(crate) const RESOLVER: &str = r##"(function(matchText){
     if(el.disabled||el.getAttribute('aria-disabled')==='true'||(el.closest&&el.closest('fieldset[disabled]')))return 'disabled';
     return null;
   }
-  function actionable(el){
+  function actionable(el,ms){
     var why=blocker(el);
     if(why)return Promise.resolve({ok:false,reason:why});
     var r0=el.getBoundingClientRect();
     if(r0.top<0||r0.left<0||r0.bottom>innerHeight||r0.right>innerWidth)el.scrollIntoView({block:'center',inline:'center'});
     function bx(){var r=el.getBoundingClientRect();return [r.x,r.y,r.width,r.height];}
-    var a=bx();return new Promise(function(res){requestAnimationFrame(function(){var b=bx();var stable=Math.abs(a[0]-b[0])<0.5&&Math.abs(a[1]-b[1])<0.5&&Math.abs(a[2]-b[2])<0.5&&Math.abs(a[3]-b[3])<0.5;if(!stable){res({ok:false,reason:'unstable'});return;}var r=el.getBoundingClientRect();if(r.width<=0&&r.height<=0){res({ok:false,reason:'zero size'});return;}var cx=r.x+r.width/2,cy=r.y+r.height/2;if(cx<0||cy<0||cx>innerWidth||cy>innerHeight){res({ok:false,reason:'offscreen'});return;}var top=document.elementFromPoint(cx,cy);var hit=!top||el===top||el.contains(top)||top.contains(el);if(!hit){var cn=top&&typeof top.className==='string'?top.className.trim().split(/\s+/)[0]:'';res({ok:false,reason:'obscured',coveredBy:top?top.tagName.toLowerCase()+(top.id?'#'+top.id:'')+(cn?'.'+cn:''):''});return;}res({ok:true,box:{x:r.x,y:r.y,width:r.width,height:r.height}});});});
+    var a=bx();return new Promise(function(res){setTimeout(function(){res({ok:false,reason:'unstable'});},ms);requestAnimationFrame(function(){var b=bx();var stable=Math.abs(a[0]-b[0])<0.5&&Math.abs(a[1]-b[1])<0.5&&Math.abs(a[2]-b[2])<0.5&&Math.abs(a[3]-b[3])<0.5;if(!stable){res({ok:false,reason:'unstable'});return;}var r=el.getBoundingClientRect();if(r.width<=0&&r.height<=0){res({ok:false,reason:'zero size'});return;}var cx=r.x+r.width/2,cy=r.y+r.height/2;if(cx<0||cy<0||cx>innerWidth||cy>innerHeight){res({ok:false,reason:'offscreen'});return;}var top=document.elementFromPoint(cx,cy);var hit=!top||el===top||el.contains(top)||top.contains(el);if(!hit){var cn=top&&typeof top.className==='string'?top.className.trim().split(/\s+/)[0]:'';res({ok:false,reason:'obscured',coveredBy:top?top.tagName.toLowerCase()+(top.id?'#'+top.id:'')+(cn?'.'+cn:''):''});return;}res({ok:true,box:{x:r.x,y:r.y,width:r.width,height:r.height}});});});
   }
   return {find:find,actionable:actionable};
 })"##;

@@ -222,8 +222,12 @@ pub charm::Error::NotActionable::covered_by: core::option::Option<alloc::string:
 pub charm::Error::NotActionable::reason: core::option::Option<charm::Blocker>
 pub charm::Error::NotActionable::selector: charm::Selector
 pub charm::Error::Protocol
+pub charm::Error::Protocol::code: core::option::Option<i64>
 pub charm::Error::Protocol::message: alloc::string::String
 pub charm::Error::Protocol::method: alloc::string::String
+pub charm::Error::Script
+pub charm::Error::Script::kind: charm::ScriptError
+pub charm::Error::Script::message: alloc::string::String
 pub charm::Error::Spawn
 pub charm::Error::Spawn::path: std::path::PathBuf
 pub charm::Error::Spawn::source: core::io::error::Error
@@ -317,6 +321,16 @@ impl core::marker::Copy for charm::SameSite
 impl core::marker::StructuralPartialEq for charm::SameSite
 impl serde_core::ser::Serialize for charm::SameSite
 impl<'de> serde_core::de::Deserialize<'de> for charm::SameSite
+#[non_exhaustive] pub enum charm::ScriptError
+pub charm::ScriptError::Other
+pub charm::ScriptError::Syntax
+pub charm::ScriptError::Type
+impl core::clone::Clone for charm::ScriptError
+impl core::cmp::Eq for charm::ScriptError
+impl core::cmp::PartialEq for charm::ScriptError
+impl core::fmt::Debug for charm::ScriptError
+impl core::marker::Copy for charm::ScriptError
+impl core::marker::StructuralPartialEq for charm::ScriptError
 #[non_exhaustive] pub enum charm::ScriptTag
 pub charm::ScriptTag::Content(alloc::string::String)
 pub charm::ScriptTag::Url(alloc::string::String)

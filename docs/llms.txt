@@ -4,10 +4,10 @@
 
 ## charm-cdp 0.1.0
 
-- [Every public item, one per line](reference/charm-cdp/api.txt): 614 lines
+- [Every public item, one per line](reference/charm-cdp/api.txt): 628 lines
 - [API overview](reference/charm-cdp/index.html): tasks, modules, features, and examples
 - [API changes by release](reference/charm-cdp/changes.html)
-- [charm](reference/charm-cdp/charm.html): 272 items
+- [charm](reference/charm-cdp/charm.html): 280 items
 - [charm::human](reference/charm-cdp/charm-human.html): 130 items
 - [Example intercept](reference/charm-cdp/examples/intercept.html): `cargo run -p charm-cdp --example intercept`
 - [Example search_form](reference/charm-cdp/examples/search_form.html): `cargo run -p charm-cdp --example search_form`

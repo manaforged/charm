@@ -245,7 +245,13 @@ impl Session {
     }
 
     pub async fn wheel(&mut self, delta_x: f64, delta_y: f64) -> Result<(), Error> {
-        let center = self.evaluate("[innerWidth/2,innerHeight/2]").await?;
+        let center = self
+            .evaluate_in(
+                None,
+                crate::session::World::Isolated,
+                "[innerWidth/2,innerHeight/2]",
+            )
+            .await?;
         let at = |i: usize| center.get(i).and_then(Value::as_f64).unwrap_or(0.0);
         self.mouse_event(json!({
             "type": "mouseWheel",

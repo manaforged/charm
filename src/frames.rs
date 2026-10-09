@@ -2,7 +2,7 @@ use crate::dom::BoundingBox;
 use crate::error::Error;
 use crate::locator::Locator;
 use crate::selector::{Selector, quote};
-use crate::session::Session;
+use crate::session::{Session, World};
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
@@ -181,7 +181,8 @@ impl Session {
         expression: &str,
     ) -> Result<T, Error> {
         Ok(serde_json::from_value(
-            self.evaluate_in(session_id, expression).await?,
+            self.evaluate_in(session_id, World::Isolated, expression)
+                .await?,
         )?)
     }
 
@@ -198,7 +199,7 @@ impl Session {
         let probe = parent.wrap(&meta_expr(&element));
         let timeout = self.timing().wait;
         drop(
-            self.poll_expression_in(parent.session_id(), &probe, timeout)
+            self.poll_expression_in(parent.session_id(), World::Isolated, &probe, timeout)
                 .await?,
         );
         let meta: Option<FrameMeta> = self.read_in(parent.session_id(), &probe).await?;
@@ -252,6 +253,7 @@ impl Session {
             .map(str::to_owned)
             .ok_or_else(|| Error::Protocol {
                 method: "Target.attachToTarget".into(),
+                code: None,
                 message: "missing sessionId".into(),
             })?;
         self.frame_sessions()

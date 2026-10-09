@@ -5,7 +5,7 @@ use crate::error::Error;
 use crate::frames::Context;
 use crate::input::MouseButton;
 use crate::selector::{Selector, TextMatch};
-use crate::session::Session;
+use crate::session::{Session, World};
 use serde::de::DeserializeOwned;
 use std::ops::Range;
 use std::time::Duration;
@@ -70,7 +70,10 @@ impl Session {
     pub async fn wait_for_selector(&mut self, selector: impl Into<Selector>) -> Result<(), Error> {
         let expr = format!("!!({})", selector.into().one_expr(None));
         let timeout = self.timing().wait;
-        drop(self.poll_expression(&expr, timeout).await?);
+        drop(
+            self.poll_expression_in(None, World::Isolated, &expr, timeout)
+                .await?,
+        );
         Ok(())
     }
 }
@@ -125,7 +128,12 @@ impl<'a> Locator<'a> {
     ) -> Result<serde_json::Value, Error> {
         let context = self.context().await?;
         self.session
-            .poll_expression_in(context.session_id(), &context.wrap(expression), timeout)
+            .poll_expression_in(
+                context.session_id(),
+                World::Isolated,
+                &context.wrap(expression),
+                timeout,
+            )
             .await
     }
 
@@ -161,15 +169,16 @@ impl<'a> Locator<'a> {
 
     async fn settle_within(&mut self, timeout: Duration) -> Result<Actionable, Error> {
         let context = self.context().await?;
-        let settled = context.wrap(&self.selector.settled_expr(self.index));
+        let frame_wait = self.session.timing().actionable;
+        let settled = context.wrap(&self.selector.settled_expr(self.index, frame_wait));
         let mut verdict: Actionable = match self
             .session
-            .poll_expression_in(context.session_id(), &settled, timeout)
+            .poll_expression_in(context.session_id(), World::Isolated, &settled, timeout)
             .await
         {
             Ok(serde_json::Value::String(json)) => serde_json::from_str(&json)?,
             Ok(_) | Err(Error::Timeout(_)) => {
-                self.eval(&self.selector.actionable_expr(self.index))
+                self.eval(&self.selector.actionable_expr(self.index, frame_wait))
                     .await?
             }
             Err(error) => return Err(error),

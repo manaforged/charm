@@ -1,5 +1,5 @@
-use crate::error::Error;
-use crate::session::Session;
+use crate::error::{Error, ScriptError};
+use crate::session::{Session, World};
 use serde_json::Value;
 use std::time::{Duration, Instant};
 
@@ -31,17 +31,10 @@ fn truthy(value: &Value) -> bool {
 }
 
 impl Session {
-    pub(crate) async fn poll_expression(
-        &mut self,
-        expression: &str,
-        timeout: Duration,
-    ) -> Result<Value, Error> {
-        self.poll_expression_in(None, expression, timeout).await
-    }
-
     pub(crate) async fn poll_expression_in(
         &mut self,
         session_id: Option<&str>,
+        world: World,
         expression: &str,
         timeout: Duration,
     ) -> Result<Value, Error> {
@@ -51,10 +44,18 @@ impl Session {
         let deadline = Instant::now() + timeout;
         let mut last = String::new();
         loop {
-            match self.evaluate_in(session_id, &wrapped).await {
+            match self.evaluate_in(session_id, world, &wrapped).await {
                 Ok(value) if truthy(&value) => return Ok(value),
                 Ok(_) => {}
-                Err(Error::Protocol { message, .. }) => last = message,
+                Err(
+                    error @ Error::Script {
+                        kind: ScriptError::Syntax,
+                        ..
+                    },
+                ) => return Err(error),
+                Err(Error::Protocol { message, .. } | Error::Script { message, .. }) => {
+                    last = message;
+                }
                 Err(error) => return Err(error),
             }
             if Instant::now() >= deadline {
@@ -66,7 +67,8 @@ impl Session {
 
     pub async fn wait_for_function(&mut self, expression: &str) -> Result<Value, Error> {
         let timeout = self.timing().wait;
-        self.poll_expression(expression, timeout).await
+        self.poll_expression_in(None, World::Main, expression, timeout)
+            .await
     }
 
     pub async fn wait_for_load_state(&mut self, state: LoadState) -> Result<(), Error> {
@@ -79,7 +81,10 @@ impl Session {
         state: LoadState,
         timeout: Duration,
     ) -> Result<(), Error> {
-        drop(self.poll_expression(state.expression(), timeout).await?);
+        drop(
+            self.poll_expression_in(None, World::Isolated, state.expression(), timeout)
+                .await?,
+        );
         Ok(())
     }
 

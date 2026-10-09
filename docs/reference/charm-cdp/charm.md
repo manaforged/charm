@@ -26,6 +26,7 @@
 | [`MouseButton`](#mousebutton) | enum |  |
 | [`RouteAction`](#routeaction) | enum |  |
 | [`SameSite`](#samesite) | enum |  |
+| [`ScriptError`](#scripterror) | enum |  |
 | [`ScriptTag`](#scripttag) | enum |  |
 | [`Selector`](#selector) | enum |  |
 | [`TextMatch`](#textmatch) | enum |  |
@@ -381,8 +382,11 @@
 | <code>NotActionable::covered_by: Option&lt;String&gt;</code> |  |
 | <code>NotActionable::reason: Option&lt;<a href="#blocker">Blocker</a>&gt;</code> |  |
 | <code>NotActionable::selector: <a href="#selector">Selector</a></code> |  |
+| <code>Protocol::code: Option&lt;i64&gt;</code> |  |
 | <code>Protocol::message: String</code> |  |
 | <code>Protocol::method: String</code> |  |
+| <code>Script::kind: <a href="#scripterror">ScriptError</a></code> |  |
+| <code>Script::message: String</code> |  |
 | <code>Spawn::path: PathBuf</code> |  |
 | <code>Spawn::source: Error</code> |  |
 
@@ -401,6 +405,7 @@
 | <code>MissingExe</code> |  |
 | <code>NotActionable</code> |  |
 | <code>Protocol</code> |  |
+| <code>Script</code> |  |
 | <code>Spawn</code> |  |
 | <code>Timeout(String)</code> |  |
 | <code>Ws(Box&lt;Error&gt;)</code> |  |
@@ -506,6 +511,19 @@
 | <code>Strict</code> |  |
 
 **Trait implementations:** <code>Clone</code>, <code>Eq</code>, <code>PartialEq</code>, <code>Debug</code>, <code>Copy</code>, <code>StructuralPartialEq</code>, <code>Serialize</code>, <code>Deserialize&lt;'de&gt;</code>
+
+
+### `ScriptError`
+
+**Variants**
+
+| Variant | Description |
+| --- | --- |
+| <code>Other</code> |  |
+| <code>Syntax</code> |  |
+| <code>Type</code> |  |
+
+**Trait implementations:** <code>Clone</code>, <code>Eq</code>, <code>PartialEq</code>, <code>Debug</code>, <code>Copy</code>, <code>StructuralPartialEq</code>
 
 
 ### `ScriptTag`

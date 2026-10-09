@@ -2,7 +2,7 @@ use crate::dom::Read;
 use crate::error::Error;
 use crate::locator::Locator;
 use crate::selector::{Selector, TextMatch, quote};
-use crate::session::Session;
+use crate::session::{Session, World};
 use std::ops::Not;
 
 fn describe(matcher: &TextMatch) -> String {
@@ -211,12 +211,16 @@ impl PageExpect<'_> {
         let timeout = self.session.timing().wait;
         match self
             .session
-            .poll_expression(&check.probe(self.want), timeout)
+            .poll_expression_in(None, World::Isolated, &check.probe(self.want), timeout)
             .await
         {
             Ok(_) => Ok(()),
             Err(Error::Timeout(_)) => {
-                let received = self.session.evaluate(&check.value).await?.to_string();
+                let received = self
+                    .session
+                    .evaluate_in(None, World::Isolated, &check.value)
+                    .await?
+                    .to_string();
                 Err(check.failure(self.want, received, None))
             }
             Err(error) => Err(error),

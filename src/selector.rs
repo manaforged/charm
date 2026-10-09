@@ -1,5 +1,6 @@
 use crate::dom::RESOLVER;
 use serde_json::{Value, json};
+use std::time::Duration;
 
 const XPATH_PREFIX: &str = "xpath=";
 const RESOLVER_VAR: &str = "__c";
@@ -7,7 +8,7 @@ const RESOLVER_VAR: &str = "__c";
 pub(crate) const MATCH_TEXT: &str = r"(function(actual,q,raw){
   function norm(t){var v=t==null?'':String(t);return raw?v:v.replace(/\s+/g,' ').trim();}
   var a=norm(actual);
-  if(q.mode==='regex'){try{return new RegExp(q.text,q.flags.replace(/[gy]/g,'')).test(a);}catch(e){return false;}}
+  if(q.mode==='regex')return new RegExp(q.text,q.flags.replace(/[gy]/g,'')).test(a);
   var w=norm(q.text);
   return q.mode==='exact'?a===w:a.toLowerCase().indexOf(w.toLowerCase())>=0;
 })";
@@ -137,17 +138,19 @@ impl Selector {
         }
     }
 
-    pub(crate) fn actionable_expr(&self, index: Option<usize>) -> String {
+    pub(crate) fn actionable_expr(&self, index: Option<usize>, frame_wait: Duration) -> String {
         Self::with_resolver(&format!(
-            "return {RESOLVER_VAR}.actionable({});",
-            self.element_expr(index)
+            "return {RESOLVER_VAR}.actionable({},{});",
+            self.element_expr(index),
+            frame_wait.as_millis()
         ))
     }
 
-    pub(crate) fn settled_expr(&self, index: Option<usize>) -> String {
+    pub(crate) fn settled_expr(&self, index: Option<usize>, frame_wait: Duration) -> String {
         Self::with_resolver(&format!(
-            "return {RESOLVER_VAR}.actionable({}).then(function(v){{return v.ok?JSON.stringify(v):false;}});",
-            self.element_expr(index)
+            "return {RESOLVER_VAR}.actionable({},{}).then(function(v){{return v.ok?JSON.stringify(v):false;}});",
+            self.element_expr(index),
+            frame_wait.as_millis()
         ))
     }
 }
