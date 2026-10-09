@@ -1,6 +1,6 @@
 mod reads;
 
-use crate::dom::{Actionable, Blocker, BoundingBox, ClickResult};
+use crate::dom::{Actionable, Blocker, BoundingBox, ClickResult, Read};
 use crate::error::Error;
 use crate::frames::Context;
 use crate::input::MouseButton;
@@ -157,17 +157,18 @@ impl<'a> Locator<'a> {
     async fn settle_within(&mut self, timeout: Duration) -> Result<Actionable, Error> {
         let context = self.context().await?;
         let settled = context.wrap(&self.selector.settled_expr(self.index));
-        match self
+        let mut verdict: Actionable = match self
             .session
             .poll_expression_in(context.session_id(), &settled, timeout)
             .await
         {
-            Ok(_) | Err(Error::Timeout(_)) => {}
+            Ok(serde_json::Value::String(json)) => serde_json::from_str(&json)?,
+            Ok(_) | Err(Error::Timeout(_)) => {
+                self.eval(&self.selector.actionable_expr(self.index))
+                    .await?
+            }
             Err(error) => return Err(error),
-        }
-        let mut verdict: Actionable = self
-            .eval(&self.selector.actionable_expr(self.index))
-            .await?;
+        };
         verdict.bounds = verdict.bounds.map(|bounds| context.shift(bounds));
         Ok(verdict)
     }
@@ -225,14 +226,27 @@ impl<'a> Locator<'a> {
     }
 
     pub async fn fill(&mut self, text: &str) -> Result<(), Error> {
-        self.click().await?;
+        let element = self.selector.one_expr(self.index);
+        let ready = format!(
+            "({}&&{})",
+            Read::Visible.expr(&element),
+            Read::Enabled.expr(&element)
+        );
+        let timeout = self.session.timing().wait;
+        drop(self.poll(&ready, timeout).await?);
         let select = format!(
-            "(el=>{{if(el&&typeof el.select==='function'){{el.select();return true}}if(el){{const r=document.createRange();r.selectNodeContents(el);const s=getSelection();s.removeAllRanges();s.addRange(r);return true}}return false}})({})",
-            self.selector.one_expr(self.index)
+            "(el=>{{el.focus();if(typeof el.select==='function'){{el.select();return true}}const r=document.createRange();r.selectNodeContents(el);const s=getSelection();s.removeAllRanges();s.addRange(r);return true}})({element})"
         );
         drop(self.eval::<serde_json::Value>(&select).await?);
-        self.session.press("Backspace").await?;
-        self.session.type_chars(text).await
+        if text.is_empty() {
+            return self.session.press("Backspace").await;
+        }
+        drop(
+            self.session
+                .send("Input.insertText", serde_json::json!({ "text": text }))
+                .await?,
+        );
+        Ok(())
     }
 
     pub async fn press_sequentially(&mut self, text: &str) -> Result<(), Error> {

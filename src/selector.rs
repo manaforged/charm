@@ -132,7 +132,7 @@ impl Selector {
 
     pub(crate) fn settled_expr(&self, index: Option<usize>) -> String {
         Self::with_resolver(&format!(
-            "return {RESOLVER_VAR}.actionable({}).then(function(v){{return v.ok;}});",
+            "return {RESOLVER_VAR}.actionable({}).then(function(v){{return v.ok?JSON.stringify(v):false;}});",
             self.element_expr(index)
         ))
     }
