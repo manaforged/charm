@@ -133,32 +133,113 @@ fn lower_headers(value: Option<&Value>) -> BTreeMap<String, String> {
         .unwrap_or_default()
 }
 
+pub(crate) fn decode_base64(data: &str, method: &str) -> Result<Vec<u8>, Error> {
+    let mut out = Vec::with_capacity(data.len() / 4 * 3);
+    let mut buffer = 0u32;
+    let mut bits = 0u32;
+    for byte in data.bytes() {
+        let sextet = match byte {
+            b'A'..=b'Z' => byte - b'A',
+            b'a'..=b'z' => byte - b'a' + 26,
+            b'0'..=b'9' => byte - b'0' + 52,
+            b'+' => 62,
+            b'/' => 63,
+            b'=' | b'\n' | b'\r' => continue,
+            _ => {
+                return Err(Error::Protocol {
+                    method: method.into(),
+                    message: "invalid base64 data".into(),
+                });
+            }
+        };
+        buffer = (buffer << 6) | u32::from(sextet);
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.extend_from_slice(&((buffer >> bits) & 0xff).to_be_bytes()[3..]);
+        }
+    }
+    Ok(out)
+}
+
+pub(crate) fn encode_base64(data: &[u8]) -> String {
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(data.len().div_ceil(3) * 4);
+    for chunk in data.chunks(3) {
+        let bytes = [
+            chunk[0],
+            chunk.get(1).copied().unwrap_or(0),
+            chunk.get(2).copied().unwrap_or(0),
+        ];
+        let group = u32::from_be_bytes([0, bytes[0], bytes[1], bytes[2]]);
+        for slot in 0..4 {
+            if slot <= chunk.len() {
+                let index = (group >> (18 - 6 * slot)) & 0x3f;
+                out.push(char::from(ALPHABET[index as usize]));
+            } else {
+                out.push('=');
+            }
+        }
+    }
+    out
+}
+
 impl Session {
-    async fn wait_network(
+    async fn wait_event(
         &mut self,
-        kind: NetworkEvent,
-        url: &UrlMatch,
-    ) -> Result<(Value, Value), Error> {
+        method: &str,
+        wanted: impl Fn(&Value) -> bool,
+    ) -> Result<Value, Error> {
         self.network_on().await?;
         let deadline = Instant::now() + self.timing().wait;
         loop {
             let found = self
                 .take_event(|event| {
-                    event.get("method").and_then(Value::as_str) == Some(kind.method())
-                        && event
-                            .get("params")
-                            .and_then(|params| params.get(kind.payload()))
-                            .is_some_and(|payload| url.matches(&text(payload, "url")))
+                    event.get("method").and_then(Value::as_str) == Some(method)
+                        && event.get("params").is_some_and(&wanted)
                 })
                 .await?;
             if let Some(event) = found {
-                let params = event.get("params").cloned().unwrap_or(Value::Null);
-                let payload = params.get(kind.payload()).cloned().unwrap_or(Value::Null);
-                return Ok((params, payload));
+                return Ok(event.get("params").cloned().unwrap_or(Value::Null));
             }
             if Instant::now() >= deadline {
-                return Err(Error::Timeout(kind.method().into()));
+                return Err(Error::Timeout(method.into()));
             }
+        }
+    }
+
+    async fn wait_network(
+        &mut self,
+        kind: NetworkEvent,
+        url: &UrlMatch,
+    ) -> Result<(Value, Value), Error> {
+        let params = self
+            .wait_event(kind.method(), |params| {
+                params
+                    .get(kind.payload())
+                    .is_some_and(|payload| url.matches(&text(payload, "url")))
+            })
+            .await?;
+        let payload = params.get(kind.payload()).cloned().unwrap_or(Value::Null);
+        Ok((params, payload))
+    }
+
+    pub async fn response_body(&mut self, response: &ObservedResponse) -> Result<Vec<u8>, Error> {
+        let id = response.request_id.as_str();
+        drop(
+            self.wait_event("Network.loadingFinished", |params| {
+                params.get("requestId").and_then(Value::as_str) == Some(id)
+            })
+            .await?,
+        );
+        let body = self
+            .send("Network.getResponseBody", json!({ "requestId": id }))
+            .await?;
+        let data = body.get("body").and_then(Value::as_str).unwrap_or_default();
+        if body.get("base64Encoded").and_then(Value::as_bool) == Some(true) {
+            decode_base64(data, "Network.getResponseBody")
+        } else {
+            Ok(data.as_bytes().to_vec())
         }
     }
 

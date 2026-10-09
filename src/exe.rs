@@ -5,17 +5,10 @@ pub fn resolve() -> Option<PathBuf> {
     env_override().or_else(|| chrome_paths().into_iter().find(|path| path.is_file()))
 }
 
-#[cfg(debug_assertions)]
 fn env_override() -> Option<PathBuf> {
     env_file("CHROME_EXE").or_else(|| env_file("CHROMIUM_EXE"))
 }
 
-#[cfg(not(debug_assertions))]
-fn env_override() -> Option<PathBuf> {
-    None
-}
-
-#[cfg(debug_assertions)]
 fn env_file(key: &str) -> Option<PathBuf> {
     let raw = std::env::var(key).ok().filter(|s| !s.is_empty())?;
     let path = PathBuf::from(raw);

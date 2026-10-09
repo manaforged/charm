@@ -12,7 +12,8 @@ pub(crate) const RESOLVER: &str = r##"(function(){
     return true;
   }
   function matchText(actual,q){
-    return q.exact?actual===q.text:actual.toLowerCase().indexOf(q.text.toLowerCase())>=0;
+    if(q.mode==='regex'){try{return new RegExp(q.text,q.flags.replace(/[gy]/g,'')).test(actual);}catch(e){return false;}}
+    return q.mode==='exact'?actual===q.text:actual.toLowerCase().indexOf(q.text.toLowerCase())>=0;
   }
   function accName(el,role){
     var lb=el.getAttribute&&el.getAttribute('aria-labelledby');
@@ -54,8 +55,8 @@ pub(crate) const RESOLVER: &str = r##"(function(){
   function find(q,root){
     root=root||document;
     if(q.kind==='testid'){var o=[];root.querySelectorAll('[data-testid]').forEach(function(e){if(e.getAttribute('data-testid')===q.id&&isVisible(e))o.push(e);});return o;}
-    if(q.kind==='text'){var out=[];root.querySelectorAll('*').forEach(function(e){if(!isVisible(e))return;var t=norm(e.innerText);if(!matchText(t,q))return;var kids=e.children;for(var i=0;i<kids.length;i++){if(isVisible(kids[i])&&matchText(norm(kids[i].innerText),q))return;}out.push(e);});return out;}
-    if(q.kind==='label'){var seen=[];root.querySelectorAll('label').forEach(function(lab){var t=norm(lab.innerText||lab.textContent);if(!matchText(t,q))return;var ctrl=null;var f=lab.getAttribute('for');if(f)ctrl=document.getElementById(f);if(!ctrl)ctrl=lab.querySelector('input,select,textarea,button,[contenteditable]');if(ctrl&&isVisible(ctrl)&&seen.indexOf(ctrl)<0)seen.push(ctrl);});root.querySelectorAll('[aria-label],[aria-labelledby]').forEach(function(e){if(isVisible(e)&&matchText(accName(e),q)&&seen.indexOf(e)<0)seen.push(e);});return seen;}
+    if(q.kind==='text'){var out=[];root.querySelectorAll('*').forEach(function(e){if(!isVisible(e))return;var t=norm(e.innerText);if(!matchText(t,q.match))return;var kids=e.children;for(var i=0;i<kids.length;i++){if(isVisible(kids[i])&&matchText(norm(kids[i].innerText),q.match))return;}out.push(e);});return out;}
+    if(q.kind==='label'){var seen=[];root.querySelectorAll('label').forEach(function(lab){var t=norm(lab.innerText||lab.textContent);if(!matchText(t,q.match))return;var ctrl=null;var f=lab.getAttribute('for');if(f)ctrl=document.getElementById(f);if(!ctrl)ctrl=lab.querySelector('input,select,textarea,button,[contenteditable]');if(ctrl&&isVisible(ctrl)&&seen.indexOf(ctrl)<0)seen.push(ctrl);});root.querySelectorAll('[aria-label],[aria-labelledby]').forEach(function(e){if(isVisible(e)&&matchText(accName(e),q.match)&&seen.indexOf(e)<0)seen.push(e);});return seen;}
     if(q.kind==='role'){var rr=[];root.querySelectorAll(ROLE_CANDIDATES).forEach(function(e){if(!isVisible(e))return;if(e.closest('[aria-hidden="true"]'))return;var ir=implicitRole(e);if(ir!==q.role)return;if(q.name!=null&&!matchText(accName(e,ir),q.name))return;rr.push(e);});return rr;}
     return [];
   }
@@ -67,7 +68,6 @@ pub(crate) const RESOLVER: &str = r##"(function(){
     if(el.disabled||el.getAttribute('aria-disabled')==='true'||(el.closest&&el.closest('fieldset[disabled]')))return 'disabled';
     return null;
   }
-  function ready(el){return blocker(el)===null;}
   function actionable(el){
     var why=blocker(el);
     if(why)return Promise.resolve({ok:false,reason:why});
@@ -76,7 +76,7 @@ pub(crate) const RESOLVER: &str = r##"(function(){
     function bx(){var r=el.getBoundingClientRect();return [r.x,r.y,r.width,r.height];}
     return new Promise(function(res){requestAnimationFrame(function(){var a=bx();requestAnimationFrame(function(){var b=bx();var stable=Math.abs(a[0]-b[0])<0.5&&Math.abs(a[1]-b[1])<0.5&&Math.abs(a[2]-b[2])<0.5&&Math.abs(a[3]-b[3])<0.5;if(!stable){res({ok:false,reason:'unstable'});return;}var r=el.getBoundingClientRect();if(r.width<=0&&r.height<=0){res({ok:false,reason:'zero size'});return;}var cx=r.x+r.width/2,cy=r.y+r.height/2;if(cx<0||cy<0||cx>innerWidth||cy>innerHeight){res({ok:false,reason:'offscreen'});return;}var top=document.elementFromPoint(cx,cy);var hit=!top||el===top||el.contains(top)||top.contains(el);if(!hit){var cn=top&&typeof top.className==='string'?top.className.trim().split(/\s+/)[0]:'';res({ok:false,reason:'obscured',coveredBy:top?top.tagName.toLowerCase()+(top.id?'#'+top.id:'')+(cn?'.'+cn:''):''});return;}res({ok:true,box:{x:r.x,y:r.y,width:r.width,height:r.height}});});});});
   }
-  return {find:find,ready:ready,actionable:actionable};
+  return {find:find,actionable:actionable};
 })"##;
 
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize)]

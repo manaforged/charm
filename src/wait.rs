@@ -36,13 +36,22 @@ impl Session {
         expression: &str,
         timeout: Duration,
     ) -> Result<Value, Error> {
+        self.poll_expression_in(None, expression, timeout).await
+    }
+
+    pub(crate) async fn poll_expression_in(
+        &mut self,
+        session_id: Option<&str>,
+        expression: &str,
+        timeout: Duration,
+    ) -> Result<Value, Error> {
         let wrapped = format!(
             "(async()=>{{const __r=await ({expression});return (__r&&typeof __r==='object')?true:__r;}})()"
         );
         let deadline = Instant::now() + timeout;
         let mut last = String::new();
         loop {
-            match self.evaluate(&wrapped).await {
+            match self.evaluate_in(session_id, &wrapped).await {
                 Ok(value) if truthy(&value) => return Ok(value),
                 Ok(_) => {}
                 Err(Error::Protocol { message, .. }) => last = message,

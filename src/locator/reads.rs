@@ -1,23 +1,18 @@
 use super::Locator;
 use crate::dom::{BoundingBox, Read};
 use crate::error::Error;
-use crate::session::Session;
 use serde::de::DeserializeOwned;
-
-impl Session {
-    pub(crate) async fn read<T: DeserializeOwned>(&mut self, expression: &str) -> Result<T, Error> {
-        Ok(serde_json::from_value(self.evaluate(expression).await?)?)
-    }
-}
 
 impl Locator<'_> {
     async fn get<T: DeserializeOwned>(&mut self, read: Read<'_>) -> Result<T, Error> {
         let expr = read.expr(&self.selector.one_expr(self.index));
-        self.session.read(&expr).await
+        self.eval(&expr).await
     }
 
     pub async fn bounding_box(&mut self) -> Result<Option<BoundingBox>, Error> {
-        self.get(Read::BoundingBox).await
+        let local: Option<BoundingBox> = self.get(Read::BoundingBox).await?;
+        let context = self.context().await?;
+        Ok(local.map(|bounds| context.shift(bounds)))
     }
 
     pub async fn input_value(&mut self) -> Result<Option<String>, Error> {

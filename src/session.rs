@@ -10,9 +10,12 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::{Duration, Instant};
 use tokio::fs;
+use tokio::io::AsyncReadExt;
 use tokio::process::{Child, Command};
 use tokio::time::sleep;
 use tokio_tungstenite::connect_async;
+
+const STDERR_TAIL: usize = 4096;
 
 pub struct Session {
     transport: Transport,
@@ -36,7 +39,7 @@ impl Session {
             .args(launch.args(&user_data_dir))
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::null())
+            .stderr(Stdio::piped())
             .kill_on_drop(true);
         let child = command.spawn().map_err(|source| Error::Spawn {
             path: launch.exe().to_path_buf(),
@@ -70,6 +73,19 @@ impl Session {
         self.transport
             .send(method, params, Some(&self.session_id))
             .await
+    }
+
+    pub(crate) fn session_id(&self) -> &str {
+        &self.session_id
+    }
+
+    pub(crate) async fn send_on(
+        &mut self,
+        session_id: &str,
+        method: &str,
+        params: Value,
+    ) -> Result<Value, Error> {
+        self.transport.send(method, params, Some(session_id)).await
     }
 
     pub async fn browser_send(&mut self, method: &str, params: Value) -> Result<Value, Error> {
@@ -122,16 +138,23 @@ impl Session {
     }
 
     pub async fn evaluate(&mut self, expression: &str) -> Result<Value, Error> {
-        let result = self
-            .send(
-                "Runtime.evaluate",
-                json!({
-                    "expression": expression,
-                    "returnByValue": true,
-                    "awaitPromise": true,
-                }),
-            )
-            .await?;
+        self.evaluate_in(None, expression).await
+    }
+
+    pub(crate) async fn evaluate_in(
+        &mut self,
+        session_id: Option<&str>,
+        expression: &str,
+    ) -> Result<Value, Error> {
+        let params = json!({
+            "expression": expression,
+            "returnByValue": true,
+            "awaitPromise": true,
+        });
+        let result = match session_id {
+            Some(id) => self.send_on(id, "Runtime.evaluate", params).await?,
+            None => self.send("Runtime.evaluate", params).await?,
+        };
         if let Some(exception) = result.get("exceptionDetails") {
             return Err(Error::Protocol {
                 method: "Runtime.evaluate".into(),
@@ -141,6 +164,10 @@ impl Session {
         Ok(remote_value(
             result.get("result").cloned().unwrap_or(Value::Null),
         ))
+    }
+
+    pub(crate) fn transport_mut(&mut self) -> &mut Transport {
+        &mut self.transport
     }
 
     pub async fn open(&mut self, url: &str) -> Result<(), Error> {
@@ -219,15 +246,18 @@ async fn attach(
     start_url: &str,
     timing: Timing,
 ) -> Result<Session, Error> {
-    match handshake(&user_data_dir, start_url, timing).await {
-        Ok((transport, session_id)) => Ok(Session {
-            transport,
-            session_id,
-            child,
-            user_data_dir,
-            ephemeral,
-            timing,
-        }),
+    match handshake(&user_data_dir, start_url, timing, &mut child).await {
+        Ok((transport, session_id)) => {
+            drain_stderr(&mut child);
+            Ok(Session {
+                transport,
+                session_id,
+                child,
+                user_data_dir,
+                ephemeral,
+                timing,
+            })
+        }
         Err(error) => {
             drop(child.kill().await);
             if ephemeral {
@@ -242,8 +272,9 @@ async fn handshake(
     user_data_dir: &Path,
     start_url: &str,
     timing: Timing,
+    child: &mut Child,
 ) -> Result<(Transport, String), Error> {
-    let mut transport = connect_transport(user_data_dir, timing).await?;
+    let mut transport = connect_transport(user_data_dir, timing, child).await?;
     let target_id = create_target(&mut transport, start_url).await?;
     let attached = transport
         .send(
@@ -260,10 +291,20 @@ async fn handshake(
     Ok((transport, session_id))
 }
 
-async fn connect_transport(user_data_dir: &Path, timing: Timing) -> Result<Transport, Error> {
+async fn connect_transport(
+    user_data_dir: &Path,
+    timing: Timing,
+    child: &mut Child,
+) -> Result<Transport, Error> {
     let deadline = Instant::now() + timing.connect;
     let mut last = Error::Connect("DevTools endpoint missing".into());
     while Instant::now() < deadline {
+        if let Some(status) = child.try_wait()? {
+            return Err(Error::Exited {
+                status: status.to_string(),
+                stderr: stderr_tail(child).await,
+            });
+        }
         match read_ws_url(user_data_dir).await {
             Ok(url) => match connect_async(&url).await {
                 Ok((ws, _)) => return Ok(Transport::new(ws, timing)),
@@ -274,6 +315,23 @@ async fn connect_transport(user_data_dir: &Path, timing: Timing) -> Result<Trans
         sleep(timing.connect_poll).await;
     }
     Err(last)
+}
+
+async fn stderr_tail(child: &mut Child) -> String {
+    let mut bytes = Vec::new();
+    if let Some(mut stderr) = child.stderr.take() {
+        drop(stderr.read_to_end(&mut bytes).await);
+    }
+    let start = bytes.len().saturating_sub(STDERR_TAIL);
+    String::from_utf8_lossy(&bytes[start..]).trim().to_string()
+}
+
+fn drain_stderr(child: &mut Child) {
+    if let Some(mut stderr) = child.stderr.take() {
+        tokio::spawn(async move {
+            drop(tokio::io::copy(&mut stderr, &mut tokio::io::sink()).await);
+        });
+    }
 }
 
 async fn read_ws_url(user_data_dir: &Path) -> Result<String, Error> {

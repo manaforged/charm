@@ -1,3 +1,4 @@
+use crate::selector::Selector;
 use std::io;
 use std::path::PathBuf;
 
@@ -12,6 +13,14 @@ pub enum Error {
         path: PathBuf,
         #[source]
         source: io::Error,
+    },
+    #[error("browser exited with {status} before DevTools was ready: {stderr}")]
+    Exited { status: String, stderr: String },
+    #[error("expected {expected}, received {received}{}", selector.as_ref().map(|s| format!(" ({s:?})")).unwrap_or_default())]
+    Assertion {
+        expected: String,
+        received: String,
+        selector: Option<Selector>,
     },
     #[error("{0}")]
     Connect(String),

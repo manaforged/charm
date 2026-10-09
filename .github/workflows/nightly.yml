@@ -1,0 +1,21 @@
+name: nightly
+
+on:
+  schedule:
+    - cron: '41 6 * * *'
+
+concurrency:
+  group: charm-nightly
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: check
+    uses: ./.github/workflows/check.yml
+
+  live:
+    name: live
+    uses: ./.github/workflows/live.yml

@@ -1,4 +1,5 @@
-use super::{ReplyKind, Transport, auth_reply, blocked, matches_url};
+use super::{Transport, blocked, matches_url};
+use crate::intercept::{ReplyKind, auth_reply};
 use crate::{Error, FORBIDDEN_METHODS, Timing};
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{Value, json};

@@ -7,22 +7,31 @@
 | [`ClickResult`](#clickresult) | struct |  |
 | [`Clip`](#clip) | struct |  |
 | [`Cookie`](#cookie) | struct |  |
+| [`FrameInfo`](#frameinfo) | struct |  |
+| [`FrameLocator`](#framelocator) | struct |  |
 | [`Launch`](#launch) | struct |  |
 | [`Locator`](#locator) | struct |  |
+| [`LocatorExpect`](#locatorexpect) | struct |  |
 | [`ObservedRequest`](#observedrequest) | struct |  |
 | [`ObservedResponse`](#observedresponse) | struct |  |
+| [`PageExpect`](#pageexpect) | struct |  |
 | [`ScreenshotOptions`](#screenshotoptions) | struct |  |
 | [`Session`](#session) | struct |  |
 | [`Timing`](#timing) | struct |  |
 | [`Blocker`](#blocker) | enum |  |
 | [`Error`](#error) | enum |  |
+| [`ErrorReason`](#errorreason) | enum |  |
 | [`ImageFormat`](#imageformat) | enum |  |
 | [`LoadState`](#loadstate) | enum |  |
 | [`MouseButton`](#mousebutton) | enum |  |
+| [`RouteAction`](#routeaction) | enum |  |
 | [`SameSite`](#samesite) | enum |  |
 | [`ScriptTag`](#scripttag) | enum |  |
 | [`Selector`](#selector) | enum |  |
+| [`TextMatch`](#textmatch) | enum |  |
 | [`UrlMatch`](#urlmatch) | enum |  |
+| [`expect`](#expect) | fn |  |
+| [`expect_page`](#expect_page) | fn |  |
 | [`resolve`](#resolve) | fn |  |
 | [`FORBIDDEN_METHODS`](#forbidden_methods) | const |  |
 
@@ -109,6 +118,30 @@
 **Trait implementations:** <code>Clone</code>, <code>PartialEq</code>, <code>Default</code>, <code>Debug</code>, <code>StructuralPartialEq</code>, <code>Serialize</code>, <code>Deserialize&lt;'de&gt;</code>
 
 
+### `FrameInfo`
+
+**Fields**
+
+| Field | Description |
+| --- | --- |
+| <code>id: String</code> |  |
+| <code>name: Option&lt;String&gt;</code> |  |
+| <code>parent_id: Option&lt;String&gt;</code> |  |
+| <code>url: String</code> |  |
+
+**Trait implementations:** <code>Clone</code>, <code>Eq</code>, <code>PartialEq</code>, <code>Debug</code>, <code>StructuralPartialEq</code>
+
+
+### `FrameLocator`
+
+**Methods**
+
+| Method | Description |
+| --- | --- |
+| <code>pub fn <a href="#framelocator">FrameLocator</a>&lt;'a&gt;::frame_locator(self, selector: impl Into&lt;<a href="#selector">Selector</a>&gt;) -&gt; Self</code> |  |
+| <code>pub fn <a href="#framelocator">FrameLocator</a>&lt;'a&gt;::locator(self, inner: impl Into&lt;<a href="#selector">Selector</a>&gt;) -&gt; <a href="#locator">Locator</a>&lt;'a&gt;</code> |  |
+
+
 ### `Launch`
 
 **Methods**
@@ -134,18 +167,6 @@
 
 | Method | Description |
 | --- | --- |
-| <code>pub async fn <a href="#locator">Locator</a>&lt;'_&gt;::all(&amp;mut self) -&gt; Result&lt;Range&lt;usize&gt;, <a href="#error">Error</a>&gt;</code> |  |
-| <code>pub async fn <a href="#locator">Locator</a>&lt;'_&gt;::click(&amp;mut self) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
-| <code>pub async fn <a href="#locator">Locator</a>&lt;'_&gt;::count(&amp;mut self) -&gt; Result&lt;usize, <a href="#error">Error</a>&gt;</code> |  |
-| <code>pub async fn <a href="#locator">Locator</a>&lt;'_&gt;::fill(&amp;mut self, text: &amp;str) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
-| <code>pub fn <a href="#locator">Locator</a>&lt;'_&gt;::first(self) -&gt; Self</code> |  |
-| <code>pub async fn <a href="#locator">Locator</a>&lt;'_&gt;::hover(&amp;mut self) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
-| <code>pub fn <a href="#locator">Locator</a>&lt;'_&gt;::nth(self, index: usize) -&gt; Self</code> |  |
-| <code>pub async fn <a href="#locator">Locator</a>&lt;'_&gt;::press_sequentially(&amp;mut self, text: &amp;str) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
-| <code>pub fn <a href="#locator">Locator</a>&lt;'_&gt;::selector(&amp;self) -&gt; &amp;<a href="#selector">Selector</a></code> |  |
-| <code>pub async fn <a href="#locator">Locator</a>&lt;'_&gt;::settle(&amp;mut self) -&gt; Result&lt;<a href="#actionable">Actionable</a>, <a href="#error">Error</a>&gt;</code> |  |
-| <code>pub async fn <a href="#locator">Locator</a>&lt;'_&gt;::try_click(&amp;mut self) -&gt; Result&lt;<a href="#clickresult">ClickResult</a>, <a href="#error">Error</a>&gt;</code> |  |
-| <code>pub async fn <a href="#locator">Locator</a>&lt;'_&gt;::type_text(&amp;mut self, text: &amp;str) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>pub async fn <a href="#locator">Locator</a>&lt;'_&gt;::attribute(&amp;mut self, name: &amp;str) -&gt; Result&lt;Option&lt;String&gt;, <a href="#error">Error</a>&gt;</code> |  |
 | <code>pub async fn <a href="#locator">Locator</a>&lt;'_&gt;::bounding_box(&amp;mut self) -&gt; Result&lt;Option&lt;<a href="#boundingbox">BoundingBox</a>&gt;, <a href="#error">Error</a>&gt;</code> |  |
 | <code>pub async fn <a href="#locator">Locator</a>&lt;'_&gt;::inner_text(&amp;mut self) -&gt; Result&lt;Option&lt;String&gt;, <a href="#error">Error</a>&gt;</code> |  |
@@ -156,6 +177,40 @@
 | <code>pub async fn <a href="#locator">Locator</a>&lt;'_&gt;::is_focused(&amp;mut self) -&gt; Result&lt;bool, <a href="#error">Error</a>&gt;</code> |  |
 | <code>pub async fn <a href="#locator">Locator</a>&lt;'_&gt;::is_visible(&amp;mut self) -&gt; Result&lt;bool, <a href="#error">Error</a>&gt;</code> |  |
 | <code>pub async fn <a href="#locator">Locator</a>&lt;'_&gt;::text_content(&amp;mut self) -&gt; Result&lt;Option&lt;String&gt;, <a href="#error">Error</a>&gt;</code> |  |
+| <code>pub async fn <a href="#locator">Locator</a>&lt;'a&gt;::all(&amp;mut self) -&gt; Result&lt;Range&lt;usize&gt;, <a href="#error">Error</a>&gt;</code> |  |
+| <code>pub async fn <a href="#locator">Locator</a>&lt;'a&gt;::click(&amp;mut self) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+| <code>pub async fn <a href="#locator">Locator</a>&lt;'a&gt;::count(&amp;mut self) -&gt; Result&lt;usize, <a href="#error">Error</a>&gt;</code> |  |
+| <code>pub async fn <a href="#locator">Locator</a>&lt;'a&gt;::fill(&amp;mut self, text: &amp;str) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+| <code>pub fn <a href="#locator">Locator</a>&lt;'a&gt;::first(self) -&gt; Self</code> |  |
+| <code>pub async fn <a href="#locator">Locator</a>&lt;'a&gt;::hover(&amp;mut self) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+| <code>pub fn <a href="#locator">Locator</a>&lt;'a&gt;::nth(self, index: usize) -&gt; Self</code> |  |
+| <code>pub async fn <a href="#locator">Locator</a>&lt;'a&gt;::press_sequentially(&amp;mut self, text: &amp;str) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+| <code>pub fn <a href="#locator">Locator</a>&lt;'a&gt;::selector(&amp;self) -&gt; &amp;<a href="#selector">Selector</a></code> |  |
+| <code>pub async fn <a href="#locator">Locator</a>&lt;'a&gt;::settle(&amp;mut self) -&gt; Result&lt;<a href="#actionable">Actionable</a>, <a href="#error">Error</a>&gt;</code> |  |
+| <code>pub async fn <a href="#locator">Locator</a>&lt;'a&gt;::try_click(&amp;mut self) -&gt; Result&lt;<a href="#clickresult">ClickResult</a>, <a href="#error">Error</a>&gt;</code> |  |
+| <code>pub async fn <a href="#locator">Locator</a>&lt;'a&gt;::type_text(&amp;mut self, text: &amp;str) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+
+
+### `LocatorExpect`
+
+**Methods**
+
+| Method | Description |
+| --- | --- |
+| <code>pub async fn <a href="#locatorexpect">LocatorExpect</a>&lt;'_, '_&gt;::to_be_attached(self) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+| <code>pub async fn <a href="#locatorexpect">LocatorExpect</a>&lt;'_, '_&gt;::to_be_checked(self) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+| <code>pub async fn <a href="#locatorexpect">LocatorExpect</a>&lt;'_, '_&gt;::to_be_disabled(self) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+| <code>pub async fn <a href="#locatorexpect">LocatorExpect</a>&lt;'_, '_&gt;::to_be_enabled(self) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+| <code>pub async fn <a href="#locatorexpect">LocatorExpect</a>&lt;'_, '_&gt;::to_be_focused(self) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+| <code>pub async fn <a href="#locatorexpect">LocatorExpect</a>&lt;'_, '_&gt;::to_be_hidden(self) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+| <code>pub async fn <a href="#locatorexpect">LocatorExpect</a>&lt;'_, '_&gt;::to_be_visible(self) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+| <code>pub async fn <a href="#locatorexpect">LocatorExpect</a>&lt;'_, '_&gt;::to_contain_text(self, expected: impl Into&lt;<a href="#textmatch">TextMatch</a>&gt;) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+| <code>pub async fn <a href="#locatorexpect">LocatorExpect</a>&lt;'_, '_&gt;::to_have_attribute(self, name: &amp;str, expected: impl Into&lt;<a href="#textmatch">TextMatch</a>&gt;) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+| <code>pub async fn <a href="#locatorexpect">LocatorExpect</a>&lt;'_, '_&gt;::to_have_count(self, count: usize) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+| <code>pub async fn <a href="#locatorexpect">LocatorExpect</a>&lt;'_, '_&gt;::to_have_text(self, expected: impl Into&lt;<a href="#textmatch">TextMatch</a>&gt;) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+| <code>pub async fn <a href="#locatorexpect">LocatorExpect</a>&lt;'_, '_&gt;::to_have_value(self, expected: impl Into&lt;<a href="#textmatch">TextMatch</a>&gt;) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+
+**Trait implementations:** <code>Not</code>
 
 
 ### `ObservedRequest`
@@ -188,6 +243,18 @@
 **Trait implementations:** <code>Clone</code>, <code>Eq</code>, <code>PartialEq</code>, <code>Debug</code>, <code>StructuralPartialEq</code>
 
 
+### `PageExpect`
+
+**Methods**
+
+| Method | Description |
+| --- | --- |
+| <code>pub async fn <a href="#pageexpect">PageExpect</a>&lt;'_&gt;::to_have_title(self, expected: impl Into&lt;<a href="#textmatch">TextMatch</a>&gt;) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+| <code>pub async fn <a href="#pageexpect">PageExpect</a>&lt;'_&gt;::to_have_url(self, expected: impl Into&lt;<a href="#textmatch">TextMatch</a>&gt;) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+
+**Trait implementations:** <code>Not</code>
+
+
 ### `ScreenshotOptions`
 
 **Fields**
@@ -210,6 +277,7 @@
 | --- | --- |
 | <code>async add_cookies(&amp;mut self, cookies: Vec&lt;<a href="#cookie">Cookie</a>&gt;) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>async clear_cookies(&amp;mut self) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+| <code>async response_body(&amp;mut self, response: &amp;<a href="#observedresponse">ObservedResponse</a>) -&gt; Result&lt;Vec&lt;u8&gt;, <a href="#error">Error</a>&gt;</code> |  |
 | <code>async wait_for_request(&amp;mut self, url: <a href="#urlmatch">UrlMatch</a>) -&gt; Result&lt;<a href="#observedrequest">ObservedRequest</a>, <a href="#error">Error</a>&gt;</code> |  |
 | <code>async wait_for_response(&amp;mut self, url: <a href="#urlmatch">UrlMatch</a>) -&gt; Result&lt;<a href="#observedresponse">ObservedResponse</a>, <a href="#error">Error</a>&gt;</code> |  |
 | <code>async add_script_tag(&amp;mut self, tag: <a href="#scripttag">ScriptTag</a>) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
@@ -243,11 +311,15 @@
 | <code>locator(&amp;mut self, selector: impl Into&lt;<a href="#selector">Selector</a>&gt;) -&gt; <a href="#locator">Locator</a>&lt;'_&gt;</code> |  |
 | <code>async type_text(&amp;mut self, selector: impl Into&lt;<a href="#selector">Selector</a>&gt;, text: &amp;str) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>async wait_for_selector(&amp;mut self, selector: impl Into&lt;<a href="#selector">Selector</a>&gt;) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+| <code>frame_locator(&amp;mut self, selector: impl Into&lt;<a href="#selector">Selector</a>&gt;) -&gt; <a href="#framelocator">FrameLocator</a>&lt;'_&gt;</code> |  |
+| <code>async frames(&amp;mut self) -&gt; Result&lt;Vec&lt;<a href="#frameinfo">FrameInfo</a>&gt;, <a href="#error">Error</a>&gt;</code> |  |
 | <code>async mouse_click(&amp;mut self, x: f64, y: f64, button: <a href="#mousebutton">MouseButton</a>) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>async mouse_move(&amp;mut self, x: f64, y: f64) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>async press(&amp;mut self, combo: &amp;str) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>async scroll(&amp;mut self, delta_y: f64) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>async wheel(&amp;mut self, delta_x: f64, delta_y: f64) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+| <code>async route(&amp;mut self, url: <a href="#urlmatch">UrlMatch</a>, action: <a href="#routeaction">RouteAction</a>) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+| <code>async unroute(&amp;mut self, url: <a href="#urlmatch">UrlMatch</a>) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>async wait_for_function(&amp;mut self, expression: &amp;str) -&gt; Result&lt;Value, <a href="#error">Error</a>&gt;</code> |  |
 | <code>async wait_for_load_state(&amp;mut self, state: <a href="#loadstate">LoadState</a>) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>async wait_for_timeout(&amp;mut self, duration: Duration)</code> |  |
@@ -301,6 +373,11 @@
 
 | Field | Description |
 | --- | --- |
+| <code>Assertion::expected: String</code> |  |
+| <code>Assertion::received: String</code> |  |
+| <code>Assertion::selector: Option&lt;<a href="#selector">Selector</a>&gt;</code> |  |
+| <code>Exited::status: String</code> |  |
+| <code>Exited::stderr: String</code> |  |
 | <code>Protocol::message: String</code> |  |
 | <code>Protocol::method: String</code> |  |
 | <code>Spawn::path: PathBuf</code> |  |
@@ -310,8 +387,10 @@
 
 | Variant | Description |
 | --- | --- |
+| <code>Assertion</code> |  |
 | <code>Blocked(&amp;'static str)</code> |  |
 | <code>Connect(String)</code> |  |
+| <code>Exited</code> |  |
 | <code>Io(Error)</code> |  |
 | <code>Json(Error)</code> |  |
 | <code>MissingExe</code> |  |
@@ -321,6 +400,30 @@
 | <code>Ws(Box&lt;Error&gt;)</code> |  |
 
 **Trait implementations:** <code>From&lt;Error&gt;</code>, <code>Error</code>, <code>Debug</code>, <code>Display</code>
+
+
+### `ErrorReason`
+
+**Variants**
+
+| Variant | Description |
+| --- | --- |
+| <code>Aborted</code> |  |
+| <code>AccessDenied</code> |  |
+| <code>AddressUnreachable</code> |  |
+| <code>BlockedByClient</code> |  |
+| <code>BlockedByResponse</code> |  |
+| <code>ConnectionAborted</code> |  |
+| <code>ConnectionClosed</code> |  |
+| <code>ConnectionFailed</code> |  |
+| <code>ConnectionRefused</code> |  |
+| <code>ConnectionReset</code> |  |
+| <code>Failed</code> |  |
+| <code>InternetDisconnected</code> |  |
+| <code>NameNotResolved</code> |  |
+| <code>TimedOut</code> |  |
+
+**Trait implementations:** <code>Clone</code>, <code>Eq</code>, <code>PartialEq</code>, <code>Debug</code>, <code>Copy</code>, <code>StructuralPartialEq</code>, <code>Serialize</code>
 
 
 ### `ImageFormat`
@@ -361,6 +464,31 @@
 **Trait implementations:** <code>Clone</code>, <code>Eq</code>, <code>PartialEq</code>, <code>Default</code>, <code>Debug</code>, <code>Copy</code>, <code>StructuralPartialEq</code>
 
 
+### `RouteAction`
+
+**Fields**
+
+| Field | Description |
+| --- | --- |
+| <code>Continue::headers: Option&lt;BTreeMap&lt;String, String&gt;&gt;</code> |  |
+| <code>Continue::method: Option&lt;String&gt;</code> |  |
+| <code>Continue::post_data: Option&lt;Vec&lt;u8&gt;&gt;</code> |  |
+| <code>Continue::url: Option&lt;String&gt;</code> |  |
+| <code>Fulfill::body: Vec&lt;u8&gt;</code> |  |
+| <code>Fulfill::headers: BTreeMap&lt;String, String&gt;</code> |  |
+| <code>Fulfill::status: u16</code> |  |
+
+**Variants**
+
+| Variant | Description |
+| --- | --- |
+| <code>Abort(<a href="#errorreason">ErrorReason</a>)</code> |  |
+| <code>Continue</code> |  |
+| <code>Fulfill</code> |  |
+
+**Trait implementations:** <code>Clone</code>, <code>Eq</code>, <code>PartialEq</code>, <code>Debug</code>, <code>StructuralPartialEq</code>
+
+
 ### `SameSite`
 
 **Variants**
@@ -398,26 +526,48 @@
 
 | Field | Description |
 | --- | --- |
-| <code>Label::exact: bool</code> |  |
-| <code>Label::text: String</code> |  |
-| <code>Role::exact: bool</code> |  |
-| <code>Role::name: Option&lt;String&gt;</code> |  |
+| <code>Role::name: Option&lt;<a href="#textmatch">TextMatch</a>&gt;</code> |  |
 | <code>Role::role: String</code> |  |
-| <code>Text::exact: bool</code> |  |
-| <code>Text::text: String</code> |  |
 
 **Variants**
 
 | Variant | Description |
 | --- | --- |
 | <code>Css(String)</code> |  |
-| <code>Label</code> |  |
+| <code>Label(<a href="#textmatch">TextMatch</a>)</code> |  |
 | <code>Role</code> |  |
 | <code>TestId(String)</code> |  |
-| <code>Text</code> |  |
+| <code>Text(<a href="#textmatch">TextMatch</a>)</code> |  |
 | <code>XPath(String)</code> |  |
 
 **Trait implementations:** <code>Clone</code>, <code>Eq</code>, <code>PartialEq</code>, <code>From&lt;&amp;String&gt;</code>, <code>From&lt;&amp;str&gt;</code>, <code>From&lt;String&gt;</code>, <code>Debug</code>, <code>StructuralPartialEq</code>
+
+
+### `TextMatch`
+
+**Methods**
+
+| Method | Description |
+| --- | --- |
+| <code>new(text: &amp;str, exact: bool) -&gt; Self</code> |  |
+| <code>regex(pattern: &amp;str, flags: &amp;str) -&gt; Self</code> |  |
+
+**Fields**
+
+| Field | Description |
+| --- | --- |
+| <code>Regex::flags: String</code> |  |
+| <code>Regex::pattern: String</code> |  |
+
+**Variants**
+
+| Variant | Description |
+| --- | --- |
+| <code>Contains(String)</code> |  |
+| <code>Exact(String)</code> |  |
+| <code>Regex</code> |  |
+
+**Trait implementations:** <code>Clone</code>, <code>Eq</code>, <code>PartialEq</code>, <code>From&lt;&amp;str&gt;</code>, <code>From&lt;String&gt;</code>, <code>Debug</code>, <code>StructuralPartialEq</code>
 
 
 ### `UrlMatch`
@@ -440,6 +590,16 @@
 
 
 ## Functions
+
+### `expect`
+
+<pre>pub fn <a href="#expect">expect</a>&lt;'l, 's&gt;(locator: &amp;'l mut <a href="#locator">Locator</a>&lt;'s&gt;) -&gt; <a href="#locatorexpect">LocatorExpect</a>&lt;'l, 's&gt;</pre>
+
+
+### `expect_page`
+
+<pre>pub fn <a href="#expect_page">expect_page</a>(session: &amp;mut <a href="#session">Session</a>) -&gt; <a href="#pageexpect">PageExpect</a>&lt;'_&gt;</pre>
+
 
 ### `resolve`
 

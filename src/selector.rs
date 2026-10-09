@@ -10,18 +10,47 @@ pub enum Selector {
     XPath(String),
     Role {
         role: String,
-        name: Option<String>,
-        exact: bool,
+        name: Option<TextMatch>,
     },
-    Text {
-        text: String,
-        exact: bool,
-    },
+    Text(TextMatch),
     TestId(String),
-    Label {
-        text: String,
-        exact: bool,
-    },
+    Label(TextMatch),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TextMatch {
+    Exact(String),
+    Contains(String),
+    Regex { pattern: String, flags: String },
+}
+
+impl TextMatch {
+    #[must_use]
+    pub fn new(text: &str, exact: bool) -> Self {
+        if exact {
+            Self::Exact(text.to_owned())
+        } else {
+            Self::Contains(text.to_owned())
+        }
+    }
+
+    #[must_use]
+    pub fn regex(pattern: &str, flags: &str) -> Self {
+        Self::Regex {
+            pattern: pattern.to_owned(),
+            flags: flags.to_owned(),
+        }
+    }
+
+    fn query(&self) -> Value {
+        match self {
+            Self::Exact(text) => json!({ "mode": "exact", "text": text }),
+            Self::Contains(text) => json!({ "mode": "contains", "text": text }),
+            Self::Regex { pattern, flags } => {
+                json!({ "mode": "regex", "text": pattern, "flags": flags })
+            }
+        }
+    }
 }
 
 impl Selector {
@@ -36,16 +65,14 @@ impl Selector {
     fn semantic(&self) -> Value {
         match self {
             Self::Css(_) | Self::XPath(_) => Value::Null,
-            Self::Role { role, name, exact } => json!({
+            Self::Role { role, name } => json!({
                 "kind": "role",
                 "role": role,
-                "name": name.as_ref().map(|text| json!({ "text": text, "exact": exact })),
+                "name": name.as_ref().map(TextMatch::query),
             }),
-            Self::Text { text, exact } => json!({ "kind": "text", "text": text, "exact": exact }),
+            Self::Text(text) => json!({ "kind": "text", "match": text.query() }),
             Self::TestId(id) => json!({ "kind": "testid", "id": id }),
-            Self::Label { text, exact } => {
-                json!({ "kind": "label", "text": text, "exact": exact })
-            }
+            Self::Label(text) => json!({ "kind": "label", "match": text.query() }),
         }
     }
 
@@ -103,9 +130,9 @@ impl Selector {
         ))
     }
 
-    pub(crate) fn ready_expr(&self, index: Option<usize>) -> String {
+    pub(crate) fn settled_expr(&self, index: Option<usize>) -> String {
         Self::with_resolver(&format!(
-            "return {RESOLVER_VAR}.ready({});",
+            "return {RESOLVER_VAR}.actionable({}).then(function(v){{return v.ok;}});",
             self.element_expr(index)
         ))
     }
@@ -113,6 +140,18 @@ impl Selector {
 
 pub(crate) fn quote(text: &str) -> String {
     Value::String(text.to_owned()).to_string()
+}
+
+impl From<&str> for TextMatch {
+    fn from(text: &str) -> Self {
+        Self::Exact(text.to_owned())
+    }
+}
+
+impl From<String> for TextMatch {
+    fn from(text: String) -> Self {
+        Self::Exact(text)
+    }
 }
 
 impl From<&str> for Selector {

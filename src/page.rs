@@ -44,35 +44,6 @@ pub enum ScriptTag {
     Content(String),
 }
 
-fn decode_base64(data: &str) -> Result<Vec<u8>, Error> {
-    let mut out = Vec::with_capacity(data.len() / 4 * 3);
-    let mut buffer = 0u32;
-    let mut bits = 0u32;
-    for byte in data.bytes() {
-        let sextet = match byte {
-            b'A'..=b'Z' => byte - b'A',
-            b'a'..=b'z' => byte - b'a' + 26,
-            b'0'..=b'9' => byte - b'0' + 52,
-            b'+' => 62,
-            b'/' => 63,
-            b'=' | b'\n' | b'\r' => continue,
-            _ => {
-                return Err(Error::Protocol {
-                    method: "Page.captureScreenshot".into(),
-                    message: "invalid base64 data".into(),
-                });
-            }
-        };
-        buffer = (buffer << 6) | u32::from(sextet);
-        bits += 6;
-        if bits >= 8 {
-            bits -= 8;
-            out.extend_from_slice(&((buffer >> bits) & 0xff).to_be_bytes()[3..]);
-        }
-    }
-    Ok(out)
-}
-
 impl Session {
     pub async fn reload(&mut self) -> Result<(), Error> {
         drop(self.send("Page.reload", json!({})).await?);
@@ -127,7 +98,7 @@ impl Session {
                 method: "Page.captureScreenshot".into(),
                 message: "missing data".into(),
             })?;
-        decode_base64(data)
+        crate::network::decode_base64(data, "Page.captureScreenshot")
     }
 
     pub async fn add_script_tag(&mut self, tag: ScriptTag) -> Result<(), Error> {

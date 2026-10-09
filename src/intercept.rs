@@ -1,5 +1,10 @@
+use crate::Error;
+use crate::route::{Route, route_reply};
 use serde::Deserialize;
 use serde_json::{Value, json};
+use std::collections::BTreeSet;
+
+const MAX_ATTEMPTS: usize = 1024;
 
 #[derive(Deserialize)]
 pub(crate) struct Pattern {
@@ -91,6 +96,15 @@ pub(crate) struct Reply {
 pub(crate) enum ReplyKind {
     Auth { proxy: bool },
     Continue,
+    Route,
+}
+
+pub(crate) fn continue_reply(id: &str) -> Reply {
+    Reply {
+        method: "Fetch.continueRequest",
+        params: json!({ "requestId": id }),
+        kind: ReplyKind::Continue,
+    }
 }
 
 pub(crate) fn auth_reply(msg: &Value, user: &str, pass: &str) -> Option<Reply> {
@@ -114,11 +128,126 @@ pub(crate) fn auth_reply(msg: &Value, user: &str, pass: &str) -> Option<Reply> {
                 kind: ReplyKind::Auth { proxy },
             })
         }
-        "Fetch.requestPaused" => Some(Reply {
-            method: "Fetch.continueRequest",
-            params: json!({ "requestId": id }),
-            kind: ReplyKind::Continue,
-        }),
+        "Fetch.requestPaused" => Some(continue_reply(id)),
         _ => None,
+    }
+}
+
+pub(crate) enum Verdict {
+    Pass,
+    Hold,
+    Reply(Reply),
+}
+
+pub(crate) struct Intercept {
+    pub(crate) session: String,
+    login: Option<(String, String)>,
+    attempted: BTreeSet<String>,
+    patterns: Vec<Pattern>,
+    pub(crate) routes: Vec<Route>,
+}
+
+impl Intercept {
+    pub(crate) fn new(session: &str) -> Self {
+        Self {
+            session: session.to_string(),
+            login: None,
+            attempted: BTreeSet::new(),
+            patterns: Vec::new(),
+            routes: Vec::new(),
+        }
+    }
+
+    pub(crate) fn login(&mut self, user: String, pass: String) {
+        self.login = Some((user, pass));
+    }
+
+    pub(crate) fn active(&self) -> bool {
+        self.login.is_some() || !self.routes.is_empty()
+    }
+
+    pub(crate) fn accept(&mut self, patterns: Value) -> Result<(), Error> {
+        self.patterns = serde_json::from_value(patterns)?;
+        Ok(())
+    }
+
+    pub(crate) fn configure(&self, method: &str, mut params: Value) -> (Value, Option<Value>) {
+        if method == "Fetch.disable" {
+            params = json!({ "patterns": [] });
+        }
+        let mut caller = None;
+        if let Some(object) = params.as_object_mut() {
+            let list = object.entry("patterns").or_insert_with(|| json!([{}]));
+            caller = Some(list.clone());
+            if let Some(list) = list.as_array_mut() {
+                list.push(json!({ "urlPattern": "*", "requestStage": "Request" }));
+            }
+            if self.login.is_some() {
+                let auth = object.entry("handleAuthRequests").or_insert(json!(true));
+                if auth.is_boolean() {
+                    *auth = json!(true);
+                }
+            }
+        }
+        (params, caller)
+    }
+
+    pub(crate) fn decide(&mut self, msg: &Value, configuring: bool) -> Result<Verdict, Error> {
+        if msg.get("sessionId").and_then(Value::as_str) != Some(self.session.as_str()) {
+            return Ok(Verdict::Pass);
+        }
+        let params = &msg["params"];
+        if msg.get("method").and_then(Value::as_str) == Some("Fetch.requestPaused") {
+            if params.get("responseStatusCode").is_some()
+                || params.get("responseErrorReason").is_some()
+            {
+                if let Some(id) = params.get("requestId").and_then(Value::as_str) {
+                    self.attempted.remove(id);
+                }
+                return Ok(Verdict::Pass);
+            }
+            if configuring {
+                return Ok(Verdict::Hold);
+            }
+            if self.patterns.iter().any(|pattern| pattern.matches(params)) {
+                return Ok(Verdict::Pass);
+            }
+            if let Some(reply) = route_reply(&self.routes, params) {
+                return Ok(Verdict::Reply(reply));
+            }
+            if self.login.is_none() {
+                return Ok(params
+                    .get("requestId")
+                    .and_then(Value::as_str)
+                    .map_or(Verdict::Pass, |id| Verdict::Reply(continue_reply(id))));
+            }
+        }
+        let Some((user, pass)) = self.login.as_ref() else {
+            return Ok(Verdict::Pass);
+        };
+        let Some(mut reply) = auth_reply(msg, user, pass) else {
+            return Ok(Verdict::Pass);
+        };
+        if let ReplyKind::Auth { proxy: true } = reply.kind {
+            let id = params
+                .get("requestId")
+                .and_then(Value::as_str)
+                .ok_or_else(|| Error::Protocol {
+                    method: "Fetch.authRequired".into(),
+                    message: "auth request has no requestId".into(),
+                })?;
+            if self.attempted.contains(id) {
+                reply.params["authChallengeResponse"] = json!({ "response": "CancelAuth" });
+            } else {
+                if self.attempted.len() >= MAX_ATTEMPTS {
+                    return Err(Error::Protocol {
+                        method: "Fetch.continueWithAuth".into(),
+                        message: "proxy authentication request limit exceeded".into(),
+                    });
+                }
+                self.attempted.insert(id.to_string());
+            }
+        }
+        Ok(Verdict::Reply(reply))
     }
 }

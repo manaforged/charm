@@ -2,9 +2,11 @@ mod reads;
 
 use crate::dom::{Actionable, Blocker, BoundingBox, ClickResult};
 use crate::error::Error;
+use crate::frames::Context;
 use crate::input::MouseButton;
-use crate::selector::Selector;
+use crate::selector::{Selector, TextMatch};
 use crate::session::Session;
+use serde::de::DeserializeOwned;
 use std::ops::Range;
 use std::time::Duration;
 
@@ -12,30 +14,24 @@ pub struct Locator<'a> {
     session: &'a mut Session,
     selector: Selector,
     index: Option<usize>,
+    frames: Vec<Selector>,
+    context: Option<Context>,
 }
 
 impl Session {
     pub fn locator(&mut self, selector: impl Into<Selector>) -> Locator<'_> {
-        Locator {
-            session: self,
-            selector: selector.into(),
-            index: None,
-        }
+        Locator::framed(self, selector.into(), Vec::new())
     }
 
     pub fn get_by_role(&mut self, role: &str, name: Option<&str>, exact: bool) -> Locator<'_> {
         self.locator(Selector::Role {
             role: role.to_owned(),
-            name: name.map(str::to_owned),
-            exact,
+            name: name.map(|text| TextMatch::new(text, exact)),
         })
     }
 
     pub fn get_by_text(&mut self, text: &str, exact: bool) -> Locator<'_> {
-        self.locator(Selector::Text {
-            text: text.to_owned(),
-            exact,
-        })
+        self.locator(Selector::Text(TextMatch::new(text, exact)))
     }
 
     pub fn get_by_test_id(&mut self, id: &str) -> Locator<'_> {
@@ -43,10 +39,7 @@ impl Session {
     }
 
     pub fn get_by_label(&mut self, text: &str, exact: bool) -> Locator<'_> {
-        self.locator(Selector::Label {
-            text: text.to_owned(),
-            exact,
-        })
+        self.locator(Selector::Label(TextMatch::new(text, exact)))
     }
 
     pub async fn click(&mut self, selector: impl Into<Selector>) -> Result<(), Error> {
@@ -77,7 +70,64 @@ impl Session {
     }
 }
 
-impl Locator<'_> {
+impl<'a> Locator<'a> {
+    pub(crate) fn framed(
+        session: &'a mut Session,
+        selector: Selector,
+        frames: Vec<Selector>,
+    ) -> Self {
+        Self {
+            session,
+            selector,
+            index: None,
+            frames,
+            context: None,
+        }
+    }
+
+    async fn context(&mut self) -> Result<Context, Error> {
+        if let Some(context) = &self.context {
+            return Ok(context.clone());
+        }
+        let context = self.session.frame_context(&self.frames).await?;
+        self.context = Some(context.clone());
+        Ok(context)
+    }
+
+    async fn eval<T: DeserializeOwned>(&mut self, expression: &str) -> Result<T, Error> {
+        let context = self.context().await?;
+        self.session
+            .read_in(context.session_id(), &context.wrap(expression))
+            .await
+    }
+
+    pub(crate) fn element_expr(&self) -> String {
+        self.selector.one_expr(self.index)
+    }
+
+    pub(crate) fn count_expr(&self) -> String {
+        self.selector.count_expr()
+    }
+
+    pub(crate) fn timing(&self) -> crate::Timing {
+        self.session.timing()
+    }
+
+    pub(crate) async fn poll(
+        &mut self,
+        expression: &str,
+        timeout: Duration,
+    ) -> Result<serde_json::Value, Error> {
+        let context = self.context().await?;
+        self.session
+            .poll_expression_in(context.session_id(), &context.wrap(expression), timeout)
+            .await
+    }
+
+    pub(crate) async fn value(&mut self, expression: &str) -> Result<serde_json::Value, Error> {
+        self.eval(expression).await
+    }
+
     #[must_use]
     pub fn first(mut self) -> Self {
         self.index = None;
@@ -97,24 +147,29 @@ impl Locator<'_> {
 
     pub async fn count(&mut self) -> Result<usize, Error> {
         let expr = self.selector.count_expr();
-        self.session.read(&expr).await
+        self.eval(&expr).await
     }
 
     pub async fn all(&mut self) -> Result<Range<usize>, Error> {
         Ok(0..self.count().await?)
     }
 
-    async fn probe(&mut self) -> Result<Actionable, Error> {
-        let expr = self.selector.actionable_expr(self.index);
-        self.session.read(&expr).await
-    }
-
     async fn settle_within(&mut self, timeout: Duration) -> Result<Actionable, Error> {
-        let ready = self.selector.ready_expr(self.index);
-        match self.session.poll_expression(&ready, timeout).await {
-            Ok(_) | Err(Error::Timeout(_)) => self.probe().await,
-            Err(error) => Err(error),
+        let context = self.context().await?;
+        let settled = context.wrap(&self.selector.settled_expr(self.index));
+        match self
+            .session
+            .poll_expression_in(context.session_id(), &settled, timeout)
+            .await
+        {
+            Ok(_) | Err(Error::Timeout(_)) => {}
+            Err(error) => return Err(error),
         }
+        let mut verdict: Actionable = self
+            .eval(&self.selector.actionable_expr(self.index))
+            .await?;
+        verdict.bounds = verdict.bounds.map(|bounds| context.shift(bounds));
+        Ok(verdict)
     }
 
     pub async fn settle(&mut self) -> Result<Actionable, Error> {
@@ -175,7 +230,7 @@ impl Locator<'_> {
             "(el=>{{if(el&&typeof el.select==='function'){{el.select();return true}}if(el){{const r=document.createRange();r.selectNodeContents(el);const s=getSelection();s.removeAllRanges();s.addRange(r);return true}}return false}})({})",
             self.selector.one_expr(self.index)
         );
-        drop(self.session.evaluate(&select).await?);
+        drop(self.eval::<serde_json::Value>(&select).await?);
         self.session.press("Backspace").await?;
         self.session.type_chars(text).await
     }

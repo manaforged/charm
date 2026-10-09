@@ -1,6 +1,7 @@
 #[cfg(test)]
 use crate::intercept::matches_url;
-use crate::intercept::{Pattern, ReplyKind, auth_reply};
+use crate::intercept::{Intercept, Verdict};
+use crate::route::Route;
 use crate::{Error, Timing};
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{Value, json};
@@ -28,18 +29,10 @@ pub(crate) struct Transport {
     timing: Timing,
     sent: BTreeSet<String>,
     events: Vec<Value>,
-    auth: Option<Auth>,
+    intercept: Option<Intercept>,
     pending: BTreeMap<u64, &'static str>,
     fetch: Option<(u64, Value)>,
     held: VecDeque<Value>,
-}
-
-struct Auth {
-    user: String,
-    pass: String,
-    session: String,
-    attempted: BTreeSet<String>,
-    patterns: Vec<Pattern>,
 }
 
 impl Transport {
@@ -50,11 +43,20 @@ impl Transport {
             timing,
             sent: BTreeSet::new(),
             events: Vec::new(),
-            auth: None,
+            intercept: None,
             pending: BTreeMap::new(),
             fetch: None,
             held: VecDeque::new(),
         }
+    }
+
+    fn intercept_for(&mut self, session: &str) -> &mut Intercept {
+        let current = self
+            .intercept
+            .take()
+            .filter(|intercept| intercept.session == session);
+        self.intercept
+            .insert(current.unwrap_or_else(|| Intercept::new(session)))
     }
 
     pub(crate) async fn arm_auth(
@@ -63,13 +65,21 @@ impl Transport {
         user: String,
         pass: String,
     ) -> Result<(), Error> {
-        self.auth = Some(Auth {
-            user,
-            pass,
-            session: session.to_string(),
-            attempted: BTreeSet::new(),
-            patterns: Vec::new(),
-        });
+        self.intercept_for(session).login(user, pass);
+        drop(self.send("Fetch.disable", json!({}), Some(session)).await?);
+        Ok(())
+    }
+
+    pub(crate) async fn reroute(
+        &mut self,
+        session: &str,
+        edit: impl FnOnce(&mut Vec<Route>),
+    ) -> Result<(), Error> {
+        let intercept = self.intercept_for(session);
+        edit(&mut intercept.routes);
+        if !intercept.active() {
+            self.intercept = None;
+        }
         drop(self.send("Fetch.disable", json!({}), Some(session)).await?);
         Ok(())
     }
@@ -111,23 +121,13 @@ impl Transport {
     }
 
     async fn answer(&mut self, msg: &Value) -> Result<bool, Error> {
-        let Some(auth) = self.auth.as_mut() else {
+        let configuring = self.fetch.is_some();
+        let Some(intercept) = self.intercept.as_mut() else {
             return Ok(false);
         };
-        if msg.get("sessionId").and_then(Value::as_str) != Some(auth.session.as_str()) {
-            return Ok(false);
-        }
-        if msg.get("method").and_then(Value::as_str) == Some("Fetch.requestPaused") {
-            let params = &msg["params"];
-            if params.get("responseStatusCode").is_some()
-                || params.get("responseErrorReason").is_some()
-            {
-                if let Some(id) = params.get("requestId").and_then(Value::as_str) {
-                    auth.attempted.remove(id);
-                }
-                return Ok(false);
-            }
-            if self.fetch.is_some() {
+        match intercept.decide(msg, configuring)? {
+            Verdict::Pass => Ok(false),
+            Verdict::Hold => {
                 if self.held.len() >= MAX_EVENTS {
                     return Err(Error::Protocol {
                         method: "Fetch.enable".into(),
@@ -135,37 +135,14 @@ impl Transport {
                     });
                 }
                 self.held.push_back(msg.clone());
-                return Ok(true);
+                Ok(true)
             }
-            if auth.patterns.iter().any(|pattern| pattern.matches(params)) {
-                return Ok(false);
-            }
-        }
-        let Some(mut reply) = auth_reply(msg, &auth.user, &auth.pass) else {
-            return Ok(false);
-        };
-        if let ReplyKind::Auth { proxy: true } = reply.kind {
-            let id = msg["params"]["requestId"]
-                .as_str()
-                .ok_or_else(|| Error::Protocol {
-                    method: "Fetch.authRequired".into(),
-                    message: "auth request has no requestId".into(),
-                })?;
-            if auth.attempted.contains(id) {
-                reply.params["authChallengeResponse"] = json!({ "response": "CancelAuth" });
-            } else {
-                if auth.attempted.len() >= MAX_PENDING {
-                    return Err(Error::Protocol {
-                        method: "Fetch.continueWithAuth".into(),
-                        message: "proxy authentication request limit exceeded".into(),
-                    });
-                }
-                auth.attempted.insert(id.to_string());
+            Verdict::Reply(reply) => {
+                let session = intercept.session.clone();
+                self.post(reply.method, reply.params, &session).await?;
+                Ok(true)
             }
         }
-        let session = auth.session.clone();
-        self.post(reply.method, reply.params, &session).await?;
-        Ok(true)
     }
 
     fn queued(&mut self, msg: Value) -> Result<(), Error> {
@@ -190,25 +167,21 @@ impl Transport {
         let Some(id) = msg.get("id").and_then(Value::as_u64) else {
             return Ok(());
         };
-        if self
-            .fetch
-            .as_ref()
-            .is_some_and(|(pending, _)| *pending == id)
-        {
-            let (_, patterns) = self.fetch.take().expect("invariant: Fetch ID matched");
-            if msg.get("error").is_none() {
-                let patterns = serde_json::from_value(patterns)?;
-                if let Some(auth) = self.auth.as_mut() {
-                    auth.patterns = patterns;
-                }
+        if let Some((_, patterns)) = self.fetch.take_if(|(pending, _)| *pending == id) {
+            if msg.get("error").is_none()
+                && let Some(intercept) = self.intercept.as_mut()
+            {
+                intercept.accept(patterns)?;
             }
             while let Some(event) = self.held.pop_front() {
                 self.event(event).await?;
             }
         }
         if let Some(method) = self.pending.remove(&id) {
-            if method == "Fetch.continueRequest"
-                && msg.pointer("/error/code").and_then(Value::as_i64) == Some(-32602)
+            if matches!(
+                method,
+                "Fetch.continueRequest" | "Fetch.fulfillRequest" | "Fetch.failRequest"
+            ) && msg.pointer("/error/code").and_then(Value::as_i64) == Some(-32602)
                 && msg.pointer("/error/message").and_then(Value::as_str)
                     == Some("Invalid InterceptionId.")
             {
@@ -233,35 +206,22 @@ impl Transport {
             return Err(Error::Blocked(name));
         }
         let configuring = matches!(method, "Fetch.enable" | "Fetch.disable")
-            && self
-                .auth
-                .as_ref()
-                .is_some_and(|auth| Some(auth.session.as_str()) == session_id);
+            && self.intercept.as_ref().is_some_and(|intercept| {
+                intercept.active() && Some(intercept.session.as_str()) == session_id
+            });
         let mut patterns = None;
-        let wire_method = if configuring {
-            if self.fetch.is_some() {
-                return Err(Error::Protocol {
-                    method: method.into(),
-                    message: "previous Fetch configuration is not acknowledged".into(),
-                });
-            }
-            if method == "Fetch.disable" {
-                params = json!({ "patterns": [] });
-            }
-            if let Some(object) = params.as_object_mut() {
-                let caller = object.entry("patterns").or_insert_with(|| json!([{}]));
-                patterns = Some(caller.clone());
-                if let Some(list) = caller.as_array_mut() {
-                    list.push(json!({ "urlPattern": "*", "requestStage": "Request" }));
+        let wire_method = match self.intercept.as_ref() {
+            Some(intercept) if configuring => {
+                if self.fetch.is_some() {
+                    return Err(Error::Protocol {
+                        method: method.into(),
+                        message: "previous Fetch configuration is not acknowledged".into(),
+                    });
                 }
-                let auth = object.entry("handleAuthRequests").or_insert(json!(true));
-                if auth.is_boolean() {
-                    *auth = json!(true);
-                }
+                (params, patterns) = intercept.configure(method, params);
+                "Fetch.enable"
             }
-            "Fetch.enable"
-        } else {
-            method
+            _ => method,
         };
         let deadline = Instant::now() + self.timing.command;
         timeout_at(
