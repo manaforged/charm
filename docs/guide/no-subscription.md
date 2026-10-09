@@ -48,3 +48,7 @@ Without those events, charm works by asking instead of listening:
 - Network events are opt-in. `network_on()` sends `Network.enable`, which is not on the list. Use it only when you need `wait_for_request`, `wait_for_response`, or `response_body`.
 
 `take_events()` returns the raw events charm has received and not yet consumed, for domains you enable yourself with `send`.
+
+## Cancelling a call
+
+One `Session` reads the DevTools socket only while one of its calls runs, and it answers paused requests while it reads. Do not drop a call's future part way, for example with `tokio::time::timeout` or a `select!` branch: a paused request read in that call may never be answered. Bound waits with `Timing` instead. `Session::reply_failures` counts paused-request replies that Chrome rejected; `Session::dropped_events` counts events dropped from a full queue.

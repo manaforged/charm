@@ -299,6 +299,7 @@
 | <code>exited(&amp;mut self) -&gt; bool</code> |  |
 | <code>async launch(launch: <a href="#launch">Launch</a>) -&gt; Result&lt;Self, <a href="#error">Error</a>&gt;</code> |  |
 | <code>async network_on(&amp;mut self) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+| <code>reply_failures(&amp;self) -&gt; u64</code> |  |
 | <code>async send(&amp;mut self, method: &amp;str, params: Value) -&gt; Result&lt;Value, <a href="#error">Error</a>&gt;</code> |  |
 | <code>sent(&amp;self) -&gt; &amp;BTreeSet&lt;String&gt;</code> |  |
 | <code>async take_events(&amp;mut self) -&gt; Result&lt;Vec&lt;Value&gt;, <a href="#error">Error</a>&gt;</code> |  |

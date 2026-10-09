@@ -82,6 +82,11 @@ impl Session {
     }
 
     #[must_use]
+    pub fn reply_failures(&self) -> u64 {
+        self.transport.reply_failures()
+    }
+
+    #[must_use]
     pub fn dropped_events(&self) -> u64 {
         self.transport.dropped_events()
     }

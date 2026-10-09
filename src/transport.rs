@@ -13,6 +13,7 @@ use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
 const MAX_PENDING: usize = 1024;
 const MAX_EVENTS: usize = 4096;
+const GONE_REQUEST: i64 = -32602;
 
 pub const FORBIDDEN_METHODS: &[&str] = &[
     "Runtime.enable",
@@ -44,6 +45,7 @@ pub(crate) struct Transport {
     sent: BTreeSet<String>,
     events: VecDeque<Value>,
     dropped: u64,
+    reply_failures: u64,
     intercept: Option<Intercept>,
     pending: BTreeMap<u64, &'static str>,
     fetch: Option<(u64, Value)>,
@@ -59,6 +61,7 @@ impl Transport {
             sent: BTreeSet::new(),
             events: VecDeque::new(),
             dropped: 0,
+            reply_failures: 0,
             intercept: None,
             pending: BTreeMap::new(),
             fetch: None,
@@ -203,6 +206,10 @@ impl Transport {
         self.dropped
     }
 
+    pub(crate) fn reply_failures(&self) -> u64 {
+        self.reply_failures
+    }
+
     async fn event(&mut self, msg: Value) -> Result<(), Error> {
         if !self.answer(&msg).await? {
             self.queued(msg);
@@ -224,17 +231,11 @@ impl Transport {
                 self.event(event).await?;
             }
         }
-        if let Some(method) = self.pending.remove(&id) {
-            if matches!(
-                method,
-                "Fetch.continueRequest" | "Fetch.fulfillRequest" | "Fetch.failRequest"
-            ) && msg.pointer("/error/code").and_then(Value::as_i64) == Some(-32602)
-                && msg.pointer("/error/message").and_then(Value::as_str)
-                    == Some("Invalid InterceptionId.")
-            {
-                return Ok(());
-            }
-            drop(result(msg, method)?);
+        if self.pending.remove(&id).is_some()
+            && msg.get("error").is_some()
+            && msg.pointer("/error/code").and_then(Value::as_i64) != Some(GONE_REQUEST)
+        {
+            self.reply_failures += 1;
         }
         Ok(())
     }

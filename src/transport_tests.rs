@@ -270,3 +270,47 @@ async fn target_methods_that_bypass_the_guard_are_refused() {
         Err(Error::Blocked("Target.attachToTarget"))
     ));
 }
+
+#[tokio::test]
+async fn a_failed_reply_ack_is_counted_not_raised_on_the_next_call() {
+    let (mut transport, mut server) = connection().await;
+    let (armed, ()) = tokio::join!(
+        transport.arm_auth(Some("page"), "user".into(), "pass".into()),
+        async {
+            let command = receive(&mut server).await;
+            emit(&mut server, json!({"id": command["id"], "result": {}})).await;
+        }
+    );
+    armed.expect("arm auth");
+    let script = async {
+        let command = receive(&mut server).await;
+        emit(&mut server, json!({
+            "sessionId": "page",
+            "method": "Fetch.requestPaused",
+            "params": {"requestId": "r1", "resourceType": "Document", "request": {"url": "https://example.test/", "method": "GET"}}
+        }))
+        .await;
+        let reply = receive(&mut server).await;
+        assert_eq!(reply["method"], "Fetch.continueRequest");
+        emit(
+            &mut server,
+            json!({"id": reply["id"], "error": {"code": -32000, "message": "boom"}}),
+        )
+        .await;
+        emit(
+            &mut server,
+            json!({"id": command["id"], "result": {"result": {"value": 2}}}),
+        )
+        .await;
+    };
+    let (answered, ()) = tokio::join!(
+        transport.send(
+            "Runtime.evaluate",
+            json!({"expression": "1+1"}),
+            Some("page")
+        ),
+        script
+    );
+    answered.expect("the unrelated call succeeds");
+    assert_eq!(transport.reply_failures(), 1);
+}
