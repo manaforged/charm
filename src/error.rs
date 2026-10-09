@@ -22,7 +22,13 @@ pub enum Error {
     #[error(transparent)]
     Io(#[from] io::Error),
     #[error(transparent)]
-    Ws(#[from] tokio_tungstenite::tungstenite::Error),
+    Ws(Box<tokio_tungstenite::tungstenite::Error>),
     #[error(transparent)]
     Json(#[from] serde_json::Error),
+}
+
+impl From<tokio_tungstenite::tungstenite::Error> for Error {
+    fn from(error: tokio_tungstenite::tungstenite::Error) -> Self {
+        Self::Ws(Box::new(error))
+    }
 }
