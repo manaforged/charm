@@ -2,7 +2,7 @@
 
 ## Reporting a vulnerability
 
-Report vulnerabilities privately through [GitHub security advisories](https://github.com/manaforged/charm-cdp/security/advisories/new). Do not open a public issue for a vulnerability.
+Report vulnerabilities privately through [GitHub security advisories](https://github.com/manaforged/charm/security/advisories/new). Do not open a public issue for a vulnerability.
 
 You will get an acknowledgement within 7 days of your report. One maintainer reviews reports and replies in the advisory thread.
 

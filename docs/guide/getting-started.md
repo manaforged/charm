@@ -8,7 +8,7 @@ charm-cdp is not published on crates.io yet. Add it as a git dependency pinned t
 
 ```toml
 [dependencies]
-charm-cdp = { git = "https://github.com/manaforged/charm-cdp", rev = "<commit>" }
+charm-cdp = { git = "https://github.com/manaforged/charm", rev = "<commit>" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 

@@ -14,7 +14,7 @@ env:
 jobs:
   live:
     name: live (${{ matrix.os }})
-    if: github.repository == 'manaforged/charm-cdp'
+    if: github.repository == 'manaforged/charm'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:

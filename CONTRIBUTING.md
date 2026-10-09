@@ -1,6 +1,6 @@
 # Contributing
 
-charm-cdp does not accept external pull requests until its API is more stable. Only accounts with write access can open a pull request. To report a bug or request a feature, open an [issue](https://github.com/manaforged/charm-cdp/issues). To report a vulnerability, follow [SECURITY.md](SECURITY.md).
+charm-cdp does not accept external pull requests until its API is more stable. Only accounts with write access can open a pull request. To report a bug or request a feature, open an [issue](https://github.com/manaforged/charm/issues). To report a vulnerability, follow [SECURITY.md](SECURITY.md).
 
 A useful bug report names the Chrome build (`chrome --version`), the operating system, the smallest program that shows the problem, and the `Error` value it returned.
 
