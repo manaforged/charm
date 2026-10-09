@@ -184,3 +184,23 @@ async fn bad_selectors_fail_fast_and_protocol_errors_keep_their_code() {
     assert!(session.sent().contains("Page.createIsolatedWorld"));
     session.close().await.expect("close");
 }
+
+#[tokio::test]
+#[ignore = "launches the installed Chrome"]
+async fn proxy_auth_covers_the_page_and_its_cross_origin_frames() {
+    let site = support::serve().await;
+    let proxy = support::proxy(site).await;
+    let mut session = support::launch_through(proxy).await;
+    session
+        .goto(&format!("http://127.0.0.1:{site}/"))
+        .await
+        .expect("goto through proxy");
+    assert_eq!(session.title().await.expect("title"), "charm live");
+    let mut out = session.frame_locator("#cross").locator("#inner");
+    expect(&mut out)
+        .to_be_visible()
+        .await
+        .expect("cross-origin frame loaded through proxy");
+    assert!(support::PROXIED.load(Ordering::SeqCst) >= 2);
+    session.close().await.expect("close");
+}

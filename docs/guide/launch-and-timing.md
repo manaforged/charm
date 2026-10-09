@@ -62,13 +62,19 @@ Turn the sandbox off only on hosts where it cannot start, and only for pages you
 
 ## Errors
 
+`Error` is `#[non_exhaustive]`: a `match` on it needs a `_` arm.
+
 | Variant | Meaning |
 | --- | --- |
 | `Spawn { path, source }` | The operating system could not start `path`. |
-| `Exited { status, stderr }` | The browser exited before DevTools was ready. `stderr` holds its output. |
+| `Exited { code, stderr }` | The browser exited before DevTools was ready. `stderr` holds its output. |
 | `Connect(message)` | The DevTools endpoint did not appear within `connect`, was malformed, or the websocket closed. |
 | `Timeout(what)` | A wait, a navigation, or a command ran past its limit. |
-| `Protocol { method, message }` | Chrome returned an error, or a navigation failed (for example `net::ERR_NAME_NOT_RESOLVED`). |
+| `Protocol { method, code, message }` | Chrome returned an error, or a navigation failed (for example `net::ERR_NAME_NOT_RESOLVED`). |
+| `Script { kind, message }` | A script threw in the page. `kind` is `ScriptError::Syntax` for an invalid selector or regex, which fails at once. |
+| `NotActionable { reason, covered_by, selector }` | The element never became visible, enabled, stable, and unobscured within the wait. |
+| `Frame(message)` | A frame was detached or its target could not be found. |
+| `Closed` | The DevTools connection closed mid-session. |
 | `Assertion { expected, received, selector }` | An `expect` matcher failed. |
 | `Blocked(method)` | The call named a method in `FORBIDDEN_METHODS`. |
 | `MissingExe` | `Launch::installed()` found no browser executable. |

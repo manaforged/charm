@@ -1,3 +1,8 @@
+#![allow(
+    dead_code,
+    reason = "each test binary uses a subset of the shared helpers"
+)]
+
 use charm::{Launch, Session, Timing};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
@@ -79,4 +84,55 @@ pub async fn serve() -> u16 {
         }
     });
     port
+}
+
+pub static PROXIED: AtomicUsize = AtomicUsize::new(0);
+
+pub async fn proxy(site_port: u16) -> u16 {
+    let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind proxy");
+    let port = listener.local_addr().expect("proxy address").port();
+    tokio::spawn(async move {
+        while let Ok((mut stream, _)) = listener.accept().await {
+            tokio::spawn(async move {
+                let mut buf = vec![0u8; 16384];
+                let Ok(read) = stream.read(&mut buf).await else {
+                    return;
+                };
+                let head = String::from_utf8_lossy(&buf[..read]).into_owned();
+                let authorized = head.lines().any(|line| {
+                    line.to_ascii_lowercase()
+                        .starts_with("proxy-authorization: basic dxnlcjpwyxnz")
+                });
+                if !authorized {
+                    let reply = "HTTP/1.1 407 Proxy Authentication Required\r\nproxy-authenticate: Basic realm=\"t\"\r\ncontent-length: 0\r\nconnection: close\r\n\r\n";
+                    drop(stream.write_all(reply.as_bytes()).await);
+                    return;
+                }
+                PROXIED.fetch_add(1, Ordering::SeqCst);
+                let target = head.split_whitespace().nth(1).unwrap_or("/").to_owned();
+                let path = target
+                    .split_once("://")
+                    .and_then(|(_, rest)| rest.find('/').map(|at| rest[at..].to_owned()))
+                    .unwrap_or(target);
+                let (kind, body) = respond(&path, site_port);
+                let reply = format!(
+                    "HTTP/1.1 200 OK\r\ncontent-type: {kind}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                drop(stream.write_all(reply.as_bytes()).await);
+            });
+        }
+    });
+    port
+}
+
+pub async fn launch_through(proxy_port: u16) -> Session {
+    let mut launch = Launch::installed()
+        .expect("an installed Chrome")
+        .proxy(format!("http://user:pass@127.0.0.1:{proxy_port}"))
+        .arg("--proxy-bypass-list=<-loopback>");
+    if std::env::var("CHARM_CHROME_NO_SANDBOX").is_ok_and(|value| !value.is_empty()) {
+        launch = launch.arg("--no-sandbox");
+    }
+    Session::launch(launch).await.expect("launch")
 }

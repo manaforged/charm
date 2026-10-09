@@ -118,10 +118,14 @@ Methods are on `Session` unless the row names another type.
 | --- | --- |
 | `MissingExe` | `Launch::installed()` found no browser. |
 | `Spawn { path, source }` | The executable could not start. |
-| `Exited { status, stderr }` | The browser quit before DevTools was ready. Read `stderr`; on Linux it is often the sandbox. |
+| `Exited { code, stderr }` | The browser quit before DevTools was ready. Read `stderr`; on Linux it is often the sandbox. |
 | `Connect(_)` | The DevTools endpoint was missing, malformed, or closed. |
 | `Timeout(_)` | A wait, navigation, or actionability check ran out of time. |
 | `Assertion { expected, received, selector }` | An `expect` matcher failed. |
-| `Protocol { method, message }` | Chrome returned an error for a command, or a navigation failed. |
+| `Protocol { method, code, message }` | Chrome returned an error for a command, or a navigation failed. |
+| `Script { kind, message }` | A script threw in the page. `kind` is `ScriptError::Syntax` for an invalid selector or regex, which fails at once. |
+| `NotActionable { reason, covered_by, selector }` | The element never became visible, enabled, stable, and unobscured within the wait. |
+| `Frame(message)` | A frame was detached or its target could not be found. |
+| `Closed` | The DevTools connection closed mid-session. |
 | `Blocked(method)` | The call named a forbidden method. |
 | `Io`, `Ws`, `Json` | Lower-level failures. |

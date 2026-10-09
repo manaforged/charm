@@ -60,7 +60,7 @@ Run it with `cargo run`. The browser starts headless with a temporary profile, a
 | --- | --- |
 | `MissingExe` (from `Launch::installed()`) | No browser was found. Set `CHROME_EXE`. |
 | `Spawn { path, source }` | The path exists but could not start. Check the path and its permissions. |
-| `Exited { status, stderr }` | The browser quit before DevTools was ready. Read `stderr`. On Ubuntu 23.10 and later, AppArmor often blocks Chrome's sandbox; add `Launch::arg("--no-sandbox")` on that host. |
+| `Exited { code, stderr }` | The browser quit before DevTools was ready. Read `stderr`. On Ubuntu 23.10 and later, AppArmor often blocks Chrome's sandbox; add `Launch::arg("--no-sandbox")` on that host. |
 | `Connect(_)` | The browser started but its DevTools endpoint did not answer within `Timing::connect`. |
 
 ## Next steps
