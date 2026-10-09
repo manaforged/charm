@@ -8,11 +8,12 @@ Status: unreleased. The API is not stable.
 
 <!-- truesight:surface -->
 
-50 public items (4 types, 1 function, 23 methods, 12 fields, 9 variants, 1 constant) at 50 paths; 0 are re-export aliases. 16 trait impl lines, 2 inherent impl lines. 1 module, 0 re-export only.
+329 public items (32 types, 4 functions, 88 methods, 158 fields, 46 variants, 1 constant) at 329 paths; 0 are re-export aliases. 168 trait impl lines, 9 inherent impl lines. 2 modules, 0 re-export only.
 
 | Module | Items | Types | Functions | Methods | Aliases |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| `charm` | 50 | 4 | 1 | 23 | 0 |
+| `charm` | 199 | 21 | 1 | 77 | 0 |
+| `charm::human` | 130 | 11 | 3 | 11 | 0 |
 
 <!-- /truesight -->
 

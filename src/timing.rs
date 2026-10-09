@@ -9,6 +9,8 @@ pub struct Timing {
     pub navigate: Duration,
     pub settle: Duration,
     pub poll: Duration,
+    pub wait: Duration,
+    pub actionable: Duration,
     pub close: Duration,
 }
 
@@ -22,6 +24,8 @@ impl Default for Timing {
             navigate: Duration::from_secs(15),
             settle: Duration::from_millis(2500),
             poll: Duration::from_millis(120),
+            wait: Duration::from_secs(30),
+            actionable: Duration::from_millis(1000),
             close: Duration::from_millis(1500),
         }
     }

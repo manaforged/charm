@@ -337,6 +337,11 @@ impl Transport {
         }
     }
 
+    pub(crate) fn take_event(&mut self, wanted: impl Fn(&Value) -> bool) -> Option<Value> {
+        let at = self.events.iter().position(wanted)?;
+        Some(self.events.remove(at))
+    }
+
     pub(crate) fn take_events(&mut self) -> Vec<Value> {
         std::mem::take(&mut self.events)
     }

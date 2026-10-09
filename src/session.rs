@@ -3,6 +3,7 @@ use crate::error::Error;
 use crate::port::websocket_url;
 use crate::timing::Timing;
 use crate::transport::Transport;
+use crate::wait::LoadState;
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -54,6 +55,10 @@ impl Session {
             session.transport.arm_auth(&id, user, pass).await?;
         }
         Ok(session)
+    }
+
+    pub(crate) fn timing(&self) -> Timing {
+        self.timing
     }
 
     #[must_use]
@@ -174,28 +179,24 @@ impl Session {
     }
 
     async fn url_left_blank(&mut self, budget: Duration) -> bool {
-        let deadline = Instant::now() + budget;
-        while Instant::now() < deadline {
-            if let Ok(href) = self.evaluate("location.href").await
-                && href.as_str().is_some_and(|h| h != "about:blank")
-            {
-                return true;
-            }
-            sleep(self.timing.poll).await;
-        }
-        false
+        self.poll_expression("location.href !== 'about:blank'", budget)
+            .await
+            .is_ok()
     }
 
     async fn wait_ready(&mut self, deadline: Instant) -> Result<(), Error> {
-        while Instant::now() < deadline {
-            if let Ok(state) = self.evaluate("document.readyState").await
-                && matches!(state.as_str(), Some("interactive" | "complete"))
-            {
-                return Ok(());
-            }
-            sleep(self.timing.poll).await;
-        }
-        Err(Error::Timeout("Page.navigate".into()))
+        let left = deadline.saturating_duration_since(Instant::now());
+        self.load_state_within(LoadState::DomContentLoaded, left)
+            .await
+            .map_err(|_timeout| Error::Timeout("Page.navigate".into()))
+    }
+
+    pub(crate) async fn take_event(
+        &mut self,
+        wanted: impl Fn(&Value) -> bool,
+    ) -> Result<Option<Value>, Error> {
+        self.transport.pump().await?;
+        Ok(self.transport.take_event(wanted))
     }
 
     pub async fn close(mut self) -> Result<(), Error> {

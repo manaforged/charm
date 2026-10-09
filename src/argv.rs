@@ -10,6 +10,7 @@ pub struct Launch {
     offscreen: bool,
     proxy: Option<String>,
     timing: Timing,
+    extra: Vec<String>,
 }
 
 impl Launch {
@@ -23,6 +24,7 @@ impl Launch {
             offscreen: false,
             proxy: None,
             timing: Timing::default(),
+            extra: Vec::new(),
         }
     }
 
@@ -56,6 +58,12 @@ impl Launch {
         if !url.is_empty() {
             self.proxy = Some(url);
         }
+        self
+    }
+
+    #[must_use]
+    pub fn arg(mut self, arg: impl Into<String>) -> Self {
+        self.extra.push(arg.into());
         self
     }
 
@@ -103,6 +111,7 @@ impl Launch {
         if self.offscreen && cfg!(windows) {
             args.push("--window-position=-32000,-32000".into());
         }
+        args.extend(self.extra.iter().cloned());
         args.push(self.start_url.clone());
         args
     }
