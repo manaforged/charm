@@ -17,7 +17,7 @@ fn flags_cover_headed_and_proxy_and_start_blank() {
         .url("https://example.com")
         .args(Path::new("/data"));
     assert!(!args.iter().any(|a| a == "--headless=new"));
-    assert!(args.iter().any(|a| a == "--remote-allow-origins=*"));
+    assert!(!args.iter().any(|a| a.starts_with("--remote-allow-origins")));
     assert!(
         args.iter()
             .any(|a| a == "--proxy-server=http://127.0.0.1:9")

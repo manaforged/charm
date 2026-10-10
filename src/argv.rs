@@ -154,7 +154,6 @@ impl Launch {
         args.push("--no-first-run".into());
         args.push("--no-default-browser-check".into());
         args.push("--window-size=1536,864".into());
-        args.push("--remote-allow-origins=*".into());
         args.extend(KEYSTORE.iter().map(|arg| (*arg).to_string()));
         if let Some(proxy) = &self.proxy {
             args.push(format!("--proxy-server={}", proxy_server(proxy)));
@@ -264,7 +263,12 @@ pub(crate) fn lock_pid(target: &str) -> Option<u32> {
         .filter(|pid| *pid > 0)
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
+fn pid_alive(pid: u32) -> bool {
+    Path::new("/proc").join(pid.to_string()).exists()
+}
+
+#[cfg(all(not(windows), not(target_os = "linux")))]
 fn pid_alive(pid: u32) -> bool {
     std::process::Command::new("ps")
         .arg("-p")

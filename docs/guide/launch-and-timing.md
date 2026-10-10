@@ -30,7 +30,7 @@ let mut session = Session::launch(launch).await?;
 | `dialogs(policy)` | Sets how charm answers dialogs when page events are on. The default is `DialogPolicy::Dismiss`. |
 | `storage_state(state)` | Loads cookies and `localStorage` from a `StorageState` before the first navigation. See [Logins](logins.md). |
 
-`Launch::args(user_data_dir)` returns the full argument list charm will pass, so you can log it or check it in a test. charm always passes `--remote-debugging-port=0`, `--no-first-run`, `--no-default-browser-check`, `--window-size=1536,864`, and `--remote-allow-origins=*`.
+`Launch::args(user_data_dir)` returns the full argument list charm will pass, so you can log it or check it in a test. charm always passes `--remote-debugging-port=0`, `--no-first-run`, `--no-default-browser-check`, and `--window-size=1536,864`. It does not pass `--remote-allow-origins`, so web pages cannot open the DevTools socket.
 
 ## Choosing the browser
 
