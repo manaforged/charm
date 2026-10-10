@@ -517,8 +517,8 @@
 
 | Field | Description |
 | --- | --- |
-| <code>console_errors: usize</code> |  |
-| <code>dialogs: Vec&lt;<a href="#dialog">Dialog</a>&gt;</code> |  |
+| <code>console: Option&lt;Vec&lt;<a href="#consolemessage">ConsoleMessage</a>&gt;&gt;</code> |  |
+| <code>dialogs: Option&lt;Vec&lt;<a href="#dialog">Dialog</a>&gt;&gt;</code> |  |
 | <code>new_pages: Vec&lt;<a href="#pageid">PageId</a>&gt;</code> |  |
 | <code>snapshot: Option&lt;String&gt;</code> |  |
 | <code>title: String</code> |  |
@@ -1052,6 +1052,7 @@
 | <code>Blocked(&amp;'static str)</code> |  |
 | <code>Closed</code> |  |
 | <code>Connect(String)</code> |  |
+| <code>EventsRequired(&amp;'static str)</code> |  |
 | <code>Exited</code> |  |
 | <code>Frame(String)</code> |  |
 | <code>Io(Error)</code> |  |

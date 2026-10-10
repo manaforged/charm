@@ -170,7 +170,7 @@ impl crate::session::Session {
 
     pub async fn on_file_chooser(&mut self, files: Vec<PathBuf>) -> Result<(), Error> {
         if !self.transport_mut().observer.events.page {
-            return Err(Error::Blocked("Page.enable"));
+            return Err(Error::EventsRequired("page"));
         }
         let enabled = !files.is_empty();
         self.transport_mut().observer.transfers.chooser = enabled.then_some(files);

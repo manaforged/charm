@@ -5,11 +5,17 @@
 # Guide
 
 - [Getting started](guide/getting-started.md)
+- [Agents](guide/agents.md)
 - [Locators and selectors](guide/locators.md)
 - [Input and human motion](guide/input.md)
 - [Waiting and assertions](guide/waiting-and-assertions.md)
 - [Frames](guide/frames.md)
 - [Network](guide/network.md)
+- [Tabs and connect](guide/tabs-and-connect.md)
+- [Logins](guide/logins.md)
+- [Downloads and files](guide/downloads-and-files.md)
+- [Events](guide/events.md)
+- [Emulation and PDF](guide/emulation-and-pdf.md)
 - [Launch options and timing](guide/launch-and-timing.md)
 - [The no-subscription design](guide/no-subscription.md)
 
@@ -22,7 +28,9 @@
     - [charm::human](reference/charm-cdp/charm-human.md)
     - [API changes](reference/charm-cdp/changes.md)
     - [Examples](reference/charm-cdp/examples/index.md)
+        - [agent_loop](reference/charm-cdp/examples/agent_loop.md)
         - [intercept](reference/charm-cdp/examples/intercept.md)
+        - [keep_login](reference/charm-cdp/examples/keep_login.md)
         - [search_form](reference/charm-cdp/examples/search_form.md)
 
 <!-- /truesight -->

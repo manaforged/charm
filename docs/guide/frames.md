@@ -34,3 +34,7 @@ for frame in session.frames().await? {
     println!("{} {} parent={:?}", frame.id, frame.url, frame.parent_id);
 }
 ```
+
+## Refs inside frames
+
+A [snapshot](agents.md) includes iframe content by default, and each element inside a frame gets a ref like any other. `session.click(Selector::parse("ref=e14"))` clicks it without a `frame_locator`. The live tests cover refs in same-origin and cross-origin frames.

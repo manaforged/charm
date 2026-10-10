@@ -7,15 +7,64 @@ charm sends input with `Input.dispatchMouseEvent` and `Input.dispatchKeyEvent`, 
 | Method | What it does |
 | --- | --- |
 | `click()` | Waits until the element is actionable, then presses and releases the left button at the center of its box. |
+| `dblclick()` | The same, with two presses. |
+| `click_with(ClickOptions { .. })` | A click with another button, click count, held modifiers, or offset. |
+| `check()`, `uncheck()`, `set_checked(bool)` | Clicks a checkbox, radio, or switch only if its state differs, then checks that the state changed. |
+| `select_option(SelectBy)` | Picks options in a `<select>` and returns the values now selected. |
+| `drag_to(target)`, `drag_to_point(x, y)` | Presses on the element, moves to the target, and releases. |
+| `focus()`, `blur()` | Focuses or blurs the element from JavaScript. |
+| `press(key)` | Focuses the element, then presses `key`. |
+| `clear()` | `fill("")`. |
+| `set_input_files(files)` | Sets the files of a file input. See [Downloads and files](downloads-and-files.md). |
 | `hover()` | Waits until the element is actionable, then moves the mouse to its center. |
 | `fill(text)` | Clicks the element, selects its content, presses Backspace, and types `text`. |
 | `type_text(text)` | Clicks the element and types `text` key by key after the existing content. |
 
-The same names on `Session` (`session.click("#go")`, `session.fill("#name", "Ada")`) build a locator from the selector and call the action.
+The same names on `Session` (`session.click("#go")`, `session.fill("#name", "Ada")`, `session.check("#keep")`, `session.select_option(..)`, `session.dblclick(..)`, `session.drag_and_drop(from, to)`, `session.focus(..)`, `session.uncheck(..)`, `session.set_input_files(..)`) build a locator from the selector and call the action.
+
+### Clicks that land
+
+Before a click, charm listens for the next `pointerdown` on the element. After the click, it checks that the event reached the element or one of its children. If another element took the click, for example an overlay that appeared at the last moment, charm waits `Timing::poll` and tries again. When `Timing::wait` runs out, it returns `Error::NotActionable` with `reason: Some(Blocker::Obscured)` and `covered_by` naming the element on top. A click with `ActionOptions { force: true, .. }` skips this check.
+
+### Forms
+
+```rust
+use charm::SelectBy;
+
+session.check("#remember").await?;
+let picked = session.select_option("#plan", SelectBy::Value(vec!["pro".into()])).await?;
+assert_eq!(picked, vec!["pro".to_owned()]);
+```
+
+`SelectBy::Value`, `SelectBy::Label`, and `SelectBy::Index` each take a list, so a multi-select can pick several options. `select_option` waits until every requested option exists.
+
+### Click options and modifiers
+
+```rust
+use charm::{ClickOptions, Modifiers, MouseButton};
+
+let options = ClickOptions {
+    button: MouseButton::Left,
+    modifiers: Modifiers::CONTROL | Modifiers::SHIFT,
+    ..ClickOptions::default()
+};
+session.locator("a.result").click_with(options).await?;
+```
+
+| `ClickOptions` field | Effect |
+| --- | --- |
+| `button` | `MouseButton::Left`, `Right`, or `Middle`. |
+| `count` | The number of presses. `2` is a double click. |
+| `modifiers` | Keys held during the click: `Modifiers::ALT`, `CONTROL`, `META`, `SHIFT`, combined with the bitwise OR operator. `Modifiers::NONE` holds none. |
+| `position` | An `(x, y)` offset from the top-left corner of the element. `None` clicks the center. |
+
+`session.click_at(x, y, options)` sends the same click at a viewport point without a locator.
+
+`dblclick`, `click_with`, `Modifiers`, and the drag methods are not covered by a test.
 
 ### Actionability
 
-An element is actionable when it is attached, has a non-zero size, is visible, is inside the viewport, is not moving, is enabled, and is the top element at its center point. charm scrolls it into view as needed. `click` waits up to `Timing::wait` and then returns `Error::Timeout` with the reason.
+An element is actionable when it is attached, has a non-zero size, is visible, is inside the viewport, is not moving, is enabled, and is the top element at its center point. charm scrolls it into view as needed. `click` waits up to `Timing::wait` and then returns `Error::NotActionable` with the reason. `fill` and `type_text` also need an editable element.
 
 To check without failing, use `settle` or `try_click`. Both wait only up to `Timing::actionable`:
 
@@ -32,7 +81,7 @@ if !result.clicked {
 }
 ```
 
-`Blocker` has the variants `NoMatch`, `Detached`, `ZeroSize`, `NotVisible`, `Offscreen`, `Unstable`, `Disabled`, and `Obscured`.
+`Blocker` has the variants `NoMatch`, `Detached`, `ZeroSize`, `NotVisible`, `Offscreen`, `Unstable`, `Disabled`, `NotEditable`, and `Obscured`.
 
 ## Raw input
 

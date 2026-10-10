@@ -16,7 +16,7 @@ Routes and network waits take a `UrlMatch`:
 
 ## Routes
 
-`route(url, action)` handles every request whose URL matches. Routes are checked in the order you added them, and the first match wins. A request that matches no route continues unchanged.
+`route(url, action)` handles every request whose URL matches. Routes are checked in the order you added them, and the first match wins. A request that matches no route continues unchanged. Routes apply to every tab of the session, including tabs opened after the call.
 
 ```rust
 use charm::{ErrorReason, RouteAction, UrlMatch};
@@ -67,13 +67,13 @@ let body = session.response_body(&response).await?;
 
 `response_body(&response)` waits until the response has finished loading, then returns the body as bytes. Base64 bodies are decoded.
 
-charm keeps up to 4096 unread events. Read them, or call `take_events()` to drain them, on long sessions with network events on. When the queue is full, the next read returns `Error::Protocol`.
+charm keeps up to 4096 unread events. When the queue is full, charm drops the oldest event, and `dropped_events()` counts it. On long sessions with network events on, read the events you need, or call `take_events()` to drain them.
 
 ## Cookies
 
 | Method | Effect |
 | --- | --- |
-| `cookies()` | Every cookie in the browser, as the raw `Storage.getCookies` result (`serde_json::Value`). |
+| `cookies()` | Every cookie in the browser, as `Vec<Cookie>`. |
 | `cookie_named(name)` | The first `Cookie` with that name, or `None`. |
 | `add_cookies(vec![Cookie { .. }])` | Sets typed cookies. |
 | `clear_cookies()` | Deletes every cookie. |
@@ -93,4 +93,8 @@ session
     .await?;
 ```
 
-A cookie needs a `url`, or a `domain` and `path`. To keep cookies between runs, launch with `Launch::profile(dir)`.
+A cookie needs a `url`, or a `domain` and `path`. To keep cookies between runs, launch with `Launch::profile(dir)`, or save a storage state. See [Logins](logins.md).
+
+## Headers, throttling, and offline
+
+`set_extra_headers`, `set_throttle`, and `set_offline` change every request of the active tab. See [Emulation and PDF](emulation-and-pdf.md).

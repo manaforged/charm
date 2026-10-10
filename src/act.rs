@@ -1,5 +1,5 @@
 use crate::error::Error;
-use crate::events::{ConsoleLevel, Dialog};
+use crate::events::{ConsoleMessage, Dialog};
 use crate::expect::expect_page;
 use crate::input::ClickOptions;
 use crate::locator::SelectBy;
@@ -122,8 +122,8 @@ pub struct Outcome {
     pub url_after: String,
     pub title: String,
     pub new_pages: Vec<PageId>,
-    pub dialogs: Vec<Dialog>,
-    pub console_errors: usize,
+    pub dialogs: Option<Vec<Dialog>>,
+    pub console: Option<Vec<ConsoleMessage>>,
     pub snapshot: Option<String>,
 }
 
@@ -136,8 +136,6 @@ impl Session {
             .into_iter()
             .map(|page| page.id)
             .collect();
-        drop(self.dialogs());
-        drop(self.console());
         self.perform(action).await?;
         let new_pages = self
             .pages()
@@ -146,14 +144,9 @@ impl Session {
             .map(|page| page.id)
             .filter(|id| !before.contains(id))
             .collect();
-        let dialogs = self.dialogs();
-        let console_errors = self
-            .console()
-            .iter()
-            .filter(|message| {
-                matches!(message.level, ConsoleLevel::Error | ConsoleLevel::Exception)
-            })
-            .count();
+        let watched = self.transport_mut().observer.events;
+        let dialogs = watched.page.then(|| self.dialogs());
+        let console = watched.runtime.then(|| self.console());
         let snapshot = self.report(report).await?;
         Ok(Outcome {
             url_before,
@@ -161,7 +154,7 @@ impl Session {
             title: self.title().await?,
             new_pages,
             dialogs,
-            console_errors,
+            console,
             snapshot,
         })
     }

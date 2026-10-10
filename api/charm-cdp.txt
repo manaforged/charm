@@ -354,6 +354,7 @@ pub charm::Error::Assertion::selector: core::option::Option<charm::Selector>
 pub charm::Error::Blocked(&'static str)
 pub charm::Error::Closed
 pub charm::Error::Connect(alloc::string::String)
+pub charm::Error::EventsRequired(&'static str)
 pub charm::Error::Exited
 pub charm::Error::Exited::code: core::option::Option<i32>
 pub charm::Error::Exited::stderr: alloc::string::String
@@ -965,8 +966,8 @@ impl core::marker::StructuralPartialEq for charm::OriginStorage
 impl serde_core::ser::Serialize for charm::OriginStorage
 impl<'de> serde_core::de::Deserialize<'de> for charm::OriginStorage
 #[non_exhaustive] pub struct charm::Outcome
-pub charm::Outcome::console_errors: usize
-pub charm::Outcome::dialogs: alloc::vec::Vec<charm::Dialog>
+pub charm::Outcome::console: core::option::Option<alloc::vec::Vec<charm::ConsoleMessage>>
+pub charm::Outcome::dialogs: core::option::Option<alloc::vec::Vec<charm::Dialog>>
 pub charm::Outcome::new_pages: alloc::vec::Vec<charm::PageId>
 pub charm::Outcome::snapshot: core::option::Option<alloc::string::String>
 pub charm::Outcome::title: alloc::string::String

@@ -59,6 +59,7 @@ enum ButtonWire {
 }
 
 #[derive(Deserialize, Clone, Copy)]
+#[serde(rename_all = "lowercase")]
 enum ModifierWire {
     Alt,
     Control,
