@@ -74,4 +74,4 @@ charm keeps up to 1024 dialogs, 1024 console messages, and 1024 downloads. When 
 
 `dropped_events()` is a different count: raw CDP events dropped from the unread event queue, which holds up to 4096 events.
 
-`act` drains `dialogs()` and `console()` before it runs its action, so call them before `act` if you need the earlier records.
+`act` drains `dialogs()` and `console()` after it runs its action, so its outcome also holds any records you had not read. Call them before `act` to keep earlier records out of the outcome.
