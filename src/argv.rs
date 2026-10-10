@@ -155,6 +155,7 @@ impl Launch {
         args.push("--no-default-browser-check".into());
         args.push("--window-size=1536,864".into());
         args.push("--remote-allow-origins=*".into());
+        args.extend(KEYSTORE.iter().map(|arg| (*arg).to_string()));
         if let Some(proxy) = &self.proxy {
             args.push(format!("--proxy-server={}", proxy_server(proxy)));
         }
@@ -166,6 +167,13 @@ impl Launch {
         args
     }
 }
+
+#[cfg(target_os = "macos")]
+const KEYSTORE: &[&str] = &["--use-mock-keychain"];
+#[cfg(target_os = "linux")]
+const KEYSTORE: &[&str] = &["--password-store=basic"];
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+const KEYSTORE: &[&str] = &[];
 
 impl fmt::Debug for Launch {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

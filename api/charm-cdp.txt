@@ -1064,6 +1064,7 @@ pub async fn charm::Session::connect(endpoint: charm::Endpoint, timing: charm::T
 pub fn charm::Session::dropped_events(&self) -> u64
 pub async fn charm::Session::evaluate(&mut self, expression: &str) -> core::result::Result<serde_json::value::Value, charm::Error>
 pub fn charm::Session::exited(&mut self) -> bool
+pub async fn charm::Session::keep_cookies(&mut self) -> core::result::Result<(), charm::Error>
 pub async fn charm::Session::launch(launch: charm::Launch) -> core::result::Result<Self, charm::Error>
 pub async fn charm::Session::network_on(&mut self) -> core::result::Result<(), charm::Error>
 pub fn charm::Session::reply_failures(&self) -> u64

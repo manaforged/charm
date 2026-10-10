@@ -631,6 +631,7 @@
 | <code>dropped_events(&amp;self) -&gt; u64</code> |  |
 | <code>async evaluate(&amp;mut self, expression: &amp;str) -&gt; Result&lt;Value, <a href="#error">Error</a>&gt;</code> |  |
 | <code>exited(&amp;mut self) -&gt; bool</code> |  |
+| <code>async keep_cookies(&amp;mut self) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>async launch(launch: <a href="#launch">Launch</a>) -&gt; Result&lt;Self, <a href="#error">Error</a>&gt;</code> |  |
 | <code>async network_on(&amp;mut self) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>reply_failures(&amp;self) -&gt; u64</code> |  |

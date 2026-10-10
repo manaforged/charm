@@ -30,6 +30,7 @@ enum Owner {
 struct Owned {
     child: Child,
     _profile: Option<TempDir>,
+    kept: Option<PathBuf>,
 }
 
 pub(crate) use crate::world::World;
@@ -82,6 +83,13 @@ impl Session {
         self.set_events(events, policy).await?;
         if let Some((user, pass)) = launch.login() {
             self.transport.arm_auth(None, user, pass).await?;
+        }
+        if let Some(dir) = launch.user_data_dir() {
+            let kept = dir.join(crate::storage::KEPT_COOKIES);
+            if kept.exists() {
+                self.apply_storage_state(&crate::StorageState::load(&kept)?)
+                    .await?;
+            }
         }
         if let Some(state) = launch.storage() {
             self.apply_storage_state(state).await?;
@@ -196,7 +204,23 @@ impl Session {
         Ok(self.transport.take_event(wanted))
     }
 
+    pub async fn keep_cookies(&mut self) -> Result<(), Error> {
+        let Owner::Owned(owned) = &self.owner else {
+            return Ok(());
+        };
+        let Some(dir) = owned.kept.clone() else {
+            return Ok(());
+        };
+        let cookies = self.cookies().await?;
+        crate::StorageState {
+            cookies,
+            origins: Vec::new(),
+        }
+        .save(dir.join(crate::storage::KEPT_COOKIES))
+    }
+
     pub async fn close(mut self) -> Result<(), Error> {
+        self.keep_cookies().await?;
         if let Owner::Owned(owned) = &mut self.owner {
             drop(self.transport.send("Browser.close", json!({}), None).await);
             self.transport.close().await;
@@ -249,6 +273,7 @@ async fn attach(spawned: Spawned) -> Result<Session, Error> {
             tabs,
             owner: Owner::Owned(Box::new(Owned {
                 child,
+                kept: profile.is_none().then(|| user_data_dir.clone()),
                 _profile: profile,
             })),
             timing,

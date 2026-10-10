@@ -10,6 +10,7 @@ use std::path::Path;
 
 const READ_STORAGE: &str =
     "JSON.stringify(Object.keys(localStorage).map(k=>({name:k,value:localStorage.getItem(k)})))";
+pub(crate) const KEPT_COOKIES: &str = "charm-cookies.json";
 const HTTP: &str = "http://";
 const HTTPS: &str = "https://";
 

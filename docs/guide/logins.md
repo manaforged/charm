@@ -4,7 +4,7 @@ A site keeps a login in cookies and in `localStorage`. charm can keep both betwe
 
 ## A persistent profile
 
-`Launch::profile(dir)` uses `dir` as Chrome's user data directory. Cookies, storage, and saved site settings stay in it after `close`.
+`Launch::profile(dir)` uses `dir` as Chrome's user data directory. Cookies, storage, and saved site settings stay in it after `close`. Chrome writes cookies to disk only every 30 seconds, so `close` also saves them to `charm-cookies.json` in the profile, and the next launch on that profile loads them. `Session::keep_cookies()` writes that file at any time, so a login survives a browser that is killed instead of closed.
 
 ```rust
 use charm::{Launch, Session};

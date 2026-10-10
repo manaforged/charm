@@ -2,7 +2,7 @@ mod support;
 
 use charm::{
     Cookie, Error, ErrorReason, FORBIDDEN_METHODS, RouteAction, ScreenshotOptions, Selector,
-    TextMatch, UrlMatch, expect,
+    Session, TextMatch, UrlMatch, expect,
 };
 use std::collections::BTreeMap;
 use std::time::Duration;
@@ -152,4 +152,58 @@ async fn routes_and_response_bodies() {
         assert!(!session.sent().contains(method), "{method} was sent");
     }
     session.close().await.expect("close");
+}
+
+#[tokio::test]
+#[ignore = "launches the installed Chrome"]
+async fn a_profile_keeps_its_cookies_across_launches() {
+    let port = support::serve().await;
+    let url = format!("http://127.0.0.1:{port}/start");
+    let profile = tempfile::tempdir().expect("profile");
+    let open = || support::base(Duration::from_secs(30)).profile(profile.path());
+    let mut first = Session::launch(open()).await.expect("launch");
+    first.goto(&url).await.expect("goto");
+    first
+        .evaluate("document.cookie = 'kept=yes; max-age=86400; path=/'")
+        .await
+        .expect("set the cookie");
+    first.close().await.expect("close");
+    let mut second = Session::launch(open()).await.expect("relaunch");
+    second.goto(&url).await.expect("goto again");
+    let cookie = second.evaluate("document.cookie").await.expect("read");
+    second.close().await.expect("close again");
+    assert!(
+        cookie
+            .as_str()
+            .is_some_and(|text| text.contains("kept=yes")),
+        "{cookie}"
+    );
+}
+
+#[tokio::test]
+#[ignore = "launches the installed Chrome"]
+async fn kept_cookies_survive_a_killed_browser() {
+    let port = support::serve().await;
+    let url = format!("http://127.0.0.1:{port}/start");
+    let profile = tempfile::tempdir().expect("profile");
+    let open = || support::base(Duration::from_secs(30)).profile(profile.path());
+    let mut first = Session::launch(open()).await.expect("launch");
+    first.goto(&url).await.expect("goto");
+    first
+        .evaluate("document.cookie = 'kept=yes; max-age=86400; path=/'")
+        .await
+        .expect("set the cookie");
+    first.keep_cookies().await.expect("keep");
+    drop(first);
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    let mut second = Session::launch(open()).await.expect("relaunch");
+    second.goto(&url).await.expect("goto again");
+    let cookie = second.evaluate("document.cookie").await.expect("read");
+    second.close().await.expect("close");
+    assert!(
+        cookie
+            .as_str()
+            .is_some_and(|text| text.contains("kept=yes")),
+        "{cookie}"
+    );
 }
