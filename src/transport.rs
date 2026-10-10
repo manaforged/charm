@@ -40,6 +40,7 @@ fn unflattened(method: &str, params: &Value) -> Option<&'static str> {
 }
 
 pub(crate) struct Transport {
+    pub(crate) tracked: BTreeSet<String>,
     ws: WebSocketStream<MaybeTlsStream<TcpStream>>,
     next_id: u64,
     timing: Timing,
@@ -47,7 +48,7 @@ pub(crate) struct Transport {
     events: VecDeque<Value>,
     dropped: u64,
     reply_failures: u64,
-    intercept: Option<Intercept>,
+    pub(crate) intercept: Option<Intercept>,
     pending: BTreeMap<u64, &'static str>,
     fetch: Option<(u64, Value)>,
     held: VecDeque<Value>,
@@ -57,6 +58,7 @@ pub(crate) struct Transport {
 impl Transport {
     pub(crate) fn new(ws: WebSocketStream<MaybeTlsStream<TcpStream>>, timing: Timing) -> Self {
         Self {
+            tracked: BTreeSet::new(),
             ws,
             next_id: 1,
             timing,
@@ -108,30 +110,22 @@ impl Transport {
         if let Some(intercept) = self.intercept.as_mut() {
             intercept.login(user, pass);
         }
-        drop(
-            self.send("Fetch.disable", json!({}), scope.as_deref())
-                .await?,
-        );
-        Ok(())
+        self.apply_fetch(scope.as_deref()).await
     }
 
     pub(crate) async fn reroute(
         &mut self,
-        session: &str,
+        session: Option<&str>,
         edit: impl FnOnce(&mut Vec<Route>),
     ) -> Result<(), Error> {
-        let scope = self.intercept_for(Some(session)).await?;
+        let scope = self.intercept_for(session).await?;
         if let Some(intercept) = self.intercept.as_mut() {
             edit(&mut intercept.routes);
             if !intercept.active() {
                 self.intercept = None;
             }
         }
-        drop(
-            self.send("Fetch.disable", json!({}), scope.as_deref())
-                .await?,
-        );
-        Ok(())
+        self.apply_fetch(scope.as_deref()).await
     }
 
     async fn write(
@@ -214,10 +208,9 @@ impl Transport {
     }
 
     async fn event(&mut self, msg: Value) -> Result<(), Error> {
-        if let Some(reply) = self.observer.observe(&msg) {
+        if let Some((method, reply)) = self.observer.observe(&msg) {
             let session = msg.get("sessionId").and_then(Value::as_str);
-            self.post("Page.handleJavaScriptDialog", reply, session)
-                .await?;
+            self.post(method, reply, session).await?;
         }
         if !self.answer(&msg).await? {
             self.queued(msg);

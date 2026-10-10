@@ -2,7 +2,13 @@ use crate::error::Error;
 use crate::session::{Session, World};
 use serde::Deserialize;
 
-pub(crate) const RESOLVER: &str = r##"(function(matchText){
+pub(crate) const EDITABLE: &str = "function(e){if(!e||e.nodeType!==1)return false;if(e.getAttribute('aria-readonly')==='true')return false;if(e.isContentEditable)return true;if(e.tagName==='TEXTAREA')return !e.readOnly;if(e.tagName!=='INPUT')return false;var ty=(e.getAttribute('type')||'text').toLowerCase();return ['checkbox','radio','button','submit','reset','image','file','hidden','range','color'].indexOf(ty)<0&&!e.readOnly;}";
+
+pub(crate) const ENABLED: &str = "function(e){return !e.disabled&&e.getAttribute('aria-disabled')!=='true'&&!(e.closest&&e.closest('fieldset[disabled]'));}";
+
+pub(crate) const COVER: &str = "globalThis.__charmCover";
+
+pub(crate) const RESOLVER: &str = r##"(function(matchText,editable,enabled){
   function norm(t){return (t==null?'':String(t)).replace(/\s+/g,' ').trim();}
   function isVisible(el){
     if(!el||el.nodeType!==1)return false;
@@ -50,29 +56,54 @@ pub(crate) const RESOLVER: &str = r##"(function(matchText){
     if(tag==='form')return 'form';
     return null;
   }
+  function order(list){var o=[];list.forEach(function(e){if(o.indexOf(e)<0)o.push(e);});return o.sort(function(a,b){return a===b?0:(a.compareDocumentPosition(b)&Node.DOCUMENT_POSITION_FOLLOWING)?-1:1;});}
+  function text(e){return norm(e.innerText==null?e.textContent:e.innerText);}
+  function keep(e,q){
+    if(q.hasText&&!matchText(text(e),q.hasText))return false;
+    if(q.hasNotText&&matchText(text(e),q.hasNotText))return false;
+    if(q.has&&!find(q.has,e).length)return false;
+    if(q.hasNot&&find(q.hasNot,e).length)return false;
+    return q.visible==null||isVisible(e)===q.visible;
+  }
+  function xpath(path,root){var p=(root!==document&&path.charAt(0)==='/')?'.'+path:path;var s=document.evaluate(p,root,null,XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,null);var o=[];for(var i=0;i<s.snapshotLength;i++)o.push(s.snapshotItem(i));return o;}
+  function byRef(q,root){var m=globalThis[q.registry];var e=m&&m[q.id];return (e&&e.isConnected&&(root===document||(root!==e&&root.contains(e))))?[e]:[];}
+  function pick(q,root){var l=find(q.base,root);var e=q.last?l[l.length-1]:l[q.index];return e?[e]:[];}
   function find(q,root){
     root=root||document;
+    if(q.kind==='css')return Array.prototype.slice.call(root.querySelectorAll(q.css));
+    if(q.kind==='xpath')return xpath(q.path,root);
+    if(q.kind==='ref')return byRef(q,root);
+    if(q.kind==='within')return order([].concat.apply([],find(q.outer,root).map(function(o){return find(q.inner,o);})));
+    if(q.kind==='filter')return find(q.base,root).filter(function(e){return keep(e,q);});
+    if(q.kind==='and'){var b=find(q.b,root);return find(q.a,root).filter(function(e){return b.indexOf(e)>=0;});}
+    if(q.kind==='or')return order(find(q.a,root).concat(find(q.b,root)));
+    if(q.kind==='nth')return pick(q,root);
     if(q.kind==='testid'){var o=[];root.querySelectorAll('[data-testid]').forEach(function(e){if(e.getAttribute('data-testid')===q.id&&isVisible(e))o.push(e);});return o;}
     if(q.kind==='text'){var out=[];root.querySelectorAll('*').forEach(function(e){if(!isVisible(e))return;var t=norm(e.innerText);if(!matchText(t,q.match))return;var kids=e.children;for(var i=0;i<kids.length;i++){if(isVisible(kids[i])&&matchText(norm(kids[i].innerText),q.match))return;}out.push(e);});return out;}
     if(q.kind==='label'){var seen=[];root.querySelectorAll('label').forEach(function(lab){var t=norm(lab.innerText||lab.textContent);if(!matchText(t,q.match))return;var ctrl=null;var f=lab.getAttribute('for');if(f)ctrl=document.getElementById(f);if(!ctrl)ctrl=lab.querySelector('input,select,textarea,button,[contenteditable]');if(ctrl&&isVisible(ctrl)&&seen.indexOf(ctrl)<0)seen.push(ctrl);});root.querySelectorAll('[aria-label],[aria-labelledby]').forEach(function(e){if(isVisible(e)&&matchText(accName(e),q.match)&&seen.indexOf(e)<0)seen.push(e);});return seen;}
     if(q.kind==='role'){var rr=[];root.querySelectorAll(ROLE_CANDIDATES).forEach(function(e){if(!isVisible(e))return;if(e.closest('[aria-hidden="true"]'))return;var ir=implicitRole(e);if(ir!==q.role)return;if(q.name!=null&&!matchText(accName(e,ir),q.name))return;rr.push(e);});return rr;}
     return [];
   }
-  function blocker(el){
+  function blocker(el,need){
     if(!el||el.nodeType!==1)return 'no match';
-    if(!document.contains(el))return 'detached';
+    if(!el.isConnected)return 'detached';
     var s=getComputedStyle(el),r0=el.getBoundingClientRect();
     if(!((r0.width>0||r0.height>0)&&s.visibility!=='hidden'&&s.display!=='none'&&s.opacity!=='0'))return 'not visible';
-    if(el.disabled||el.getAttribute('aria-disabled')==='true'||(el.closest&&el.closest('fieldset[disabled]')))return 'disabled';
+    if(!enabled(el))return 'disabled';
+    if(need==='editable'&&!editable(el))return 'not editable';
     return null;
   }
-  function actionable(el,ms){
-    var why=blocker(el);
+  function rect(el){var r=el.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height};}
+  function cover(top){globalThis.__charmCover=top;var role=implicitRole(top)||top.tagName.toLowerCase();var nm=accName(top,role);return role+(nm?' '+JSON.stringify(nm):'');}
+  function actionable(el,ms,need){
+    var why=blocker(el,need);
     if(why)return Promise.resolve({ok:false,reason:why});
     var r0=el.getBoundingClientRect();
-    if(r0.top<0||r0.left<0||r0.bottom>innerHeight||r0.right>innerWidth)el.scrollIntoView({block:'center',inline:'center'});
+    var dw=el.ownerDocument.defaultView||window,dd=el.ownerDocument||document;
+    if(r0.top<0||r0.left<0||r0.bottom>dw.innerHeight||r0.right>dw.innerWidth)el.scrollIntoView({block:'center',inline:'center'});
+    if(need==='editable')return Promise.resolve({ok:true,box:rect(el)});
     function bx(){var r=el.getBoundingClientRect();return [r.x,r.y,r.width,r.height];}
-    var a=bx();return new Promise(function(res){setTimeout(function(){res({ok:false,reason:'unstable'});},ms);requestAnimationFrame(function(){var b=bx();var stable=Math.abs(a[0]-b[0])<0.5&&Math.abs(a[1]-b[1])<0.5&&Math.abs(a[2]-b[2])<0.5&&Math.abs(a[3]-b[3])<0.5;if(!stable){res({ok:false,reason:'unstable'});return;}var r=el.getBoundingClientRect();if(r.width<=0&&r.height<=0){res({ok:false,reason:'zero size'});return;}var cx=r.x+r.width/2,cy=r.y+r.height/2;if(cx<0||cy<0||cx>innerWidth||cy>innerHeight){res({ok:false,reason:'offscreen'});return;}var top=document.elementFromPoint(cx,cy);var hit=!top||el===top||el.contains(top)||top.contains(el);if(!hit){var cn=top&&typeof top.className==='string'?top.className.trim().split(/\s+/)[0]:'';res({ok:false,reason:'obscured',coveredBy:top?top.tagName.toLowerCase()+(top.id?'#'+top.id:'')+(cn?'.'+cn:''):''});return;}res({ok:true,box:{x:r.x,y:r.y,width:r.width,height:r.height}});});});
+    var a=bx();return new Promise(function(res){setTimeout(function(){res({ok:false,reason:'unstable'});},ms);dw.requestAnimationFrame(function(){var b=bx();var stable=Math.abs(a[0]-b[0])<0.5&&Math.abs(a[1]-b[1])<0.5&&Math.abs(a[2]-b[2])<0.5&&Math.abs(a[3]-b[3])<0.5;if(!stable){res({ok:false,reason:'unstable'});return;}var r=el.getBoundingClientRect();if(r.width<=0&&r.height<=0){res({ok:false,reason:'zero size'});return;}var cx=r.x+r.width/2,cy=r.y+r.height/2;if(cx<0||cy<0||cx>dw.innerWidth||cy>dw.innerHeight){res({ok:false,reason:'offscreen'});return;}var top=dd.elementFromPoint(cx,cy);var hit=!top||el===top||el.contains(top)||top.contains(el);if(!hit){res({ok:false,reason:'obscured',coveredBy:cover(top)});return;}res({ok:true,box:rect(el)});});});
   }
   return {find:find,actionable:actionable};
 })"##;
@@ -103,6 +134,8 @@ pub enum Blocker {
     NotVisible,
     #[serde(rename = "disabled")]
     Disabled,
+    #[serde(rename = "not editable")]
+    NotEditable,
     #[serde(rename = "unstable")]
     Unstable,
     #[serde(rename = "zero size")]
@@ -111,6 +144,21 @@ pub enum Blocker {
     Offscreen,
     #[serde(rename = "obscured")]
     Obscured,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Need {
+    Pointer,
+    Editable,
+}
+
+impl Need {
+    pub(crate) fn js(self) -> &'static str {
+        match self {
+            Self::Pointer => "pointer",
+            Self::Editable => "editable",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -145,26 +193,77 @@ pub(crate) enum Read<'a> {
     Checked,
     Focused,
     Attached,
+    Class,
+    Css(&'a str),
+    Id,
+    JsProperty(&'a str),
+    Editable,
+    Empty,
+    InViewport,
 }
 
 impl Read<'_> {
     pub(crate) fn expr(&self, element: &str) -> String {
-        let body = match self {
-            Self::BoundingBox => "if(!e)return null;const r=e.getBoundingClientRect();return (r.width<=0&&r.height<=0)?null:{x:r.x,y:r.y,width:r.width,height:r.height};".to_owned(),
-            Self::Visible => "if(!e)return false;const r=e.getBoundingClientRect();const s=getComputedStyle(e);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none';".to_owned(),
-            Self::InputValue => "return e?(e.value??null):null;".to_owned(),
-            Self::TextContent => "return e?(e.textContent??''):null;".to_owned(),
-            Self::InnerText => "return e?(e.innerText??''):null;".to_owned(),
+        let body = self
+            .body()
+            .map_or_else(|| self.parameterized(), str::to_owned);
+        format!("(()=>{{const e={element};{body}}})()")
+    }
+
+    fn body(&self) -> Option<&'static str> {
+        Some(match self {
+            Self::BoundingBox => {
+                "if(!e)return null;const r=e.getBoundingClientRect();return (r.width<=0&&r.height<=0)?null:{x:r.x,y:r.y,width:r.width,height:r.height};"
+            }
+            Self::Visible => {
+                "if(!e)return false;const r=e.getBoundingClientRect();const s=getComputedStyle(e);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none';"
+            }
+            Self::InputValue => "return e?(e.value??null):null;",
+            Self::TextContent => "return e?(e.textContent??''):null;",
+            Self::InnerText => "return e?(e.innerText??''):null;",
+            Self::Checked => {
+                "if(!e)return false;return !!e.checked||e.getAttribute('aria-checked')==='true';"
+            }
+            Self::Focused => "return !!e&&document.activeElement===e;",
+            Self::Attached => "return !!e;",
+            Self::Class => "return e?(e.getAttribute('class')??''):null;",
+            Self::Id => "return e?e.id:null;",
+            Self::Empty => {
+                "if(!e)return false;if(e.tagName==='INPUT'||e.tagName==='TEXTAREA')return !e.value;return !(e.textContent||'').trim();"
+            }
+            Self::InViewport => {
+                "if(!e)return false;const r=e.getBoundingClientRect();const w=e.ownerDocument.defaultView||window;return r.width>0&&r.height>0&&r.right>0&&r.bottom>0&&r.left<w.innerWidth&&r.top<w.innerHeight;"
+            }
+            Self::Attribute(_)
+            | Self::Css(_)
+            | Self::JsProperty(_)
+            | Self::Enabled
+            | Self::Editable => {
+                return None;
+            }
+        })
+    }
+
+    fn parameterized(&self) -> String {
+        match self {
             Self::Attribute(name) => format!(
                 "return e?e.getAttribute({}):null;",
                 crate::selector::quote(name)
             ),
-            Self::Enabled => "if(!e)return false;return !e.disabled&&e.getAttribute('aria-disabled')!=='true'&&!(e.closest&&e.closest('fieldset[disabled]'));".to_owned(),
-            Self::Checked => "if(!e)return false;return !!e.checked||e.getAttribute('aria-checked')==='true';".to_owned(),
-            Self::Focused => "return !!e&&document.activeElement===e;".to_owned(),
-            Self::Attached => "return !!e;".to_owned(),
-        };
-        format!("(()=>{{const e={element};{body}}})()")
+            Self::Css(name) => format!(
+                "return e?getComputedStyle(e).getPropertyValue({}):null;",
+                crate::selector::quote(name)
+            ),
+            Self::JsProperty(name) => format!(
+                "if(!e)return null;const v=e[{}];return v===undefined?null:v;",
+                crate::selector::quote(name)
+            ),
+            Self::Enabled => format!("if(!e)return false;return ({ENABLED})(e);"),
+            Self::Editable => {
+                format!("if(!e)return false;return ({EDITABLE})(e)&&({ENABLED})(e);")
+            }
+            _ => String::new(),
+        }
     }
 }
 

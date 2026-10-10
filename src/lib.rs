@@ -1,5 +1,7 @@
+mod act;
 mod argv;
 mod dom;
+mod downloads;
 mod emulation;
 mod error;
 mod events;
@@ -18,13 +20,16 @@ mod route;
 mod selector;
 mod session;
 mod snapshot;
+mod storage;
 mod timing;
 mod transport;
 mod wait;
 mod world;
 
+pub use act::{ActReport, Action, Outcome, TabAction, WaitFor};
 pub use argv::Launch;
 pub use dom::{Actionable, Blocker, BoundingBox, ClickResult, TextFormat};
+pub use downloads::{Download, DownloadState};
 pub use emulation::{
     ColorScheme, Conditions, Device, DeviceSpec, Geolocation, Margins, PaperSize, PdfOptions,
     Throttle, Viewport,
@@ -35,14 +40,15 @@ pub use exe::resolve;
 pub use expect::{LocatorExpect, PageExpect, expect, expect_page};
 pub use frames::{FrameInfo, FrameLocator};
 pub use input::{ClickOptions, Modifiers, MouseButton};
-pub use locator::{Locator, SelectBy};
+pub use locator::{ActionOptions, Locator, SelectBy};
 pub use network::{Cookie, ObservedRequest, ObservedResponse, SameSite, UrlMatch};
 pub use page::{Clip, ImageFormat, ScreenshotOptions, ScriptTag};
 pub use pages::{Endpoint, PageId, PageInfo};
 pub use route::{ErrorReason, RouteAction};
-pub use selector::{Selector, TextMatch};
+pub use selector::{Filter, Position, Selector, TextMatch};
 pub use session::Session;
 pub use snapshot::{Checked, NodeRef, Snapshot, SnapshotNode, SnapshotOptions};
+pub use storage::{OriginStorage, StorageEntry, StorageState};
 pub use timing::Timing;
 pub use transport::FORBIDDEN_METHODS;
 pub use wait::LoadState;

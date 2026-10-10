@@ -155,6 +155,7 @@ pub(crate) async fn attach_target(
         .ok_or_else(|| missing("Target.attachToTarget", "sessionId"))?;
     let events = transport.observer.events;
     transport.enable_events(&session_id, events).await?;
+    transport.track(&session_id).await?;
     Ok(session_id)
 }
 
@@ -323,7 +324,9 @@ impl Session {
                 None => drop(self.new_page(None).await?),
             }
         }
-        drop(self.tabs_mut().parked.remove(id));
+        if let Some(state) = self.tabs_mut().parked.remove(id) {
+            self.transport_mut().untrack(&state.session_id);
+        }
         drop(
             self.browser_send("Target.closeTarget", json!({ "targetId": id.0 }))
                 .await?,
@@ -340,15 +343,31 @@ impl Session {
                 .into_iter()
                 .find(|t| !self.tabs().seen.contains(&t.target_id));
             if let Some(target) = fresh {
-                let state = adopt(self.transport_mut(), target.target_id).await?;
-                let id = state.id.clone();
-                self.tabs_mut().push_active(state);
-                return Ok(id);
+                match adopt(self.transport_mut(), target.target_id.clone()).await {
+                    Ok(state) => {
+                        let id = state.id.clone();
+                        self.tabs_mut().push_active(state);
+                        return Ok(id);
+                    }
+                    Err(Error::Protocol { .. }) => {
+                        self.tabs_mut().seen.insert(target.target_id);
+                        continue;
+                    }
+                    Err(error) => return Err(error),
+                }
             }
             if Instant::now() >= deadline {
                 return Err(Error::Timeout("wait_for_page".into()));
             }
             self.idle(self.timing().poll).await?;
         }
+    }
+
+    pub async fn page_info(&mut self, id: &PageId) -> Result<PageInfo, Error> {
+        self.pages()
+            .await?
+            .into_iter()
+            .find(|page| page.id == *id)
+            .ok_or_else(|| unknown(id))
     }
 }

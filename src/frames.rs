@@ -51,6 +51,14 @@ impl Context {
         }
     }
 
+    pub(crate) fn for_frame_session(session_id: String, offset: (f64, f64)) -> Self {
+        Self {
+            session_id: Some(session_id),
+            window: None,
+            offset,
+        }
+    }
+
     pub(crate) fn session_id(&self) -> Option<&str> {
         self.session_id.as_deref()
     }
@@ -111,6 +119,8 @@ fn meta_expr(element: &str) -> String {
         "(()=>{{const el={element};if(!el)return null;let origin='';try{{origin=new URL(el.src||'',location.href).origin}}catch(e){{}}let doc=null;try{{doc=el.contentDocument}}catch(e){{}}const same=!el.src||origin==='null'||origin===location.origin;if(same!==!!doc)return null;const v=el.getBoundingClientRect();if(v.bottom<0||v.right<0||v.top>innerHeight||v.left>innerWidth)el.scrollIntoView({{block:'center',inline:'center'}});const r=el.getBoundingClientRect();const cs=getComputedStyle(el);const n=v=>parseFloat(v)||0;return {{x:r.x+n(cs.borderLeftWidth)+n(cs.paddingLeft),y:r.y+n(cs.borderTopWidth)+n(cs.paddingTop),src:el.src||'',origin,sameOrigin:same}};}})()"
     )
 }
+
+const CONTENT_BOX: &str = "function(){const v=this.getBoundingClientRect();if(v.bottom<0||v.right<0||v.top>innerHeight||v.left>innerWidth)this.scrollIntoView({block:'center',inline:'center'});const r=this.getBoundingClientRect();const cs=getComputedStyle(this);const n=v=>parseFloat(v)||0;return [r.x+n(cs.borderLeftWidth)+n(cs.paddingLeft),r.y+n(cs.borderTopWidth)+n(cs.paddingTop)];}";
 
 fn origin_of(url: &str) -> Option<&str> {
     let (scheme, rest) = url.split_once("://")?;
@@ -231,5 +241,104 @@ impl Session {
         self.frame_sessions()
             .insert(target.target_id.clone(), session_id.clone());
         Ok(session_id)
+    }
+
+    pub(crate) async fn frame_offset(&mut self, frame_session: &str) -> Result<(f64, f64), Error> {
+        let sessions: Vec<(String, String)> = self
+            .frame_sessions()
+            .iter()
+            .map(|(target, session)| (target.clone(), session.clone()))
+            .collect();
+        let page = self.session_id().to_owned();
+        let mut child = frame_session.to_owned();
+        let mut total = (0.0, 0.0);
+        for _ in 0..=sessions.len() {
+            let target = sessions
+                .iter()
+                .find(|(_, session)| *session == child)
+                .map(|(target, _)| target.clone())
+                .ok_or_else(|| Error::Frame(format!("unknown frame session {child}")))?;
+            let parents = std::iter::once(page.clone())
+                .chain(sessions.iter().map(|(_, session)| session.clone()))
+                .filter(|parent| *parent != child);
+            let mut found = None;
+            for parent in parents {
+                if let Some(offset) = self.owner_offset(&parent, &target).await? {
+                    found = Some((parent, offset));
+                    break;
+                }
+            }
+            let (parent, offset) = found
+                .ok_or_else(|| Error::Frame(format!("no owner element for frame {target}")))?;
+            total = (total.0 + offset.0, total.1 + offset.1);
+            if parent == page {
+                return Ok(total);
+            }
+            child = parent;
+        }
+        Err(Error::Frame(format!(
+            "frame chain too deep for {frame_session}"
+        )))
+    }
+
+    pub(crate) async fn owner_offset(
+        &mut self,
+        parent: &str,
+        target: &str,
+    ) -> Result<Option<(f64, f64)>, Error> {
+        let owner = match self
+            .send_on(parent, "DOM.getFrameOwner", json!({ "frameId": target }))
+            .await
+        {
+            Ok(owner) => owner,
+            Err(Error::Protocol { .. }) => return Ok(None),
+            Err(error) => return Err(error),
+        };
+        let Some(backend) = owner.get("backendNodeId").and_then(Value::as_i64) else {
+            return Ok(None);
+        };
+        let context = self.isolated_context(parent).await?;
+        let resolved = self
+            .send_on(
+                parent,
+                "DOM.resolveNode",
+                json!({ "backendNodeId": backend, "executionContextId": context }),
+            )
+            .await?;
+        let object = resolved
+            .pointer("/object/objectId")
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+            .ok_or_else(|| Error::Frame(format!("frame owner for {target} is gone")))?;
+        let called = self
+            .send_on(
+                parent,
+                "Runtime.callFunctionOn",
+                json!({
+                    "objectId": object,
+                    "functionDeclaration": CONTENT_BOX,
+                    "returnByValue": true,
+                }),
+            )
+            .await;
+        drop(
+            self.send_on(
+                parent,
+                "Runtime.releaseObject",
+                json!({ "objectId": object }),
+            )
+            .await,
+        );
+        let called = called?;
+        if let Some(exception) = called.get("exceptionDetails") {
+            return Err(Error::script(exception));
+        }
+        let (x, y): (f64, f64) = serde_json::from_value(
+            called
+                .pointer("/result/value")
+                .cloned()
+                .unwrap_or(Value::Null),
+        )?;
+        Ok(Some((x, y)))
     }
 }

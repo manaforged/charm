@@ -1,6 +1,9 @@
 use crate::error::Error;
+use crate::expect::expect_page;
+use crate::selector::TextMatch;
 use crate::session::{Session, World};
 use crate::wait::LoadState;
+use serde::Deserialize;
 use serde_json::{Value, json};
 use std::time::Instant;
 
@@ -177,5 +180,47 @@ impl Session {
         };
         drop(self.evaluate(&expression).await?);
         Ok(())
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct History {
+    current_index: i64,
+    entries: Vec<HistoryEntry>,
+}
+
+#[derive(Deserialize)]
+struct HistoryEntry {
+    id: i64,
+    url: String,
+}
+
+impl Session {
+    pub async fn go_back(&mut self) -> Result<(), Error> {
+        self.history(-1).await
+    }
+
+    pub async fn go_forward(&mut self) -> Result<(), Error> {
+        self.history(1).await
+    }
+
+    async fn history(&mut self, step: i64) -> Result<(), Error> {
+        let history: History =
+            serde_json::from_value(self.send("Page.getNavigationHistory", json!({})).await?)?;
+        let Some(entry) = history
+            .current_index
+            .checked_add(step)
+            .and_then(|index| usize::try_from(index).ok())
+            .and_then(|index| history.entries.get(index))
+        else {
+            return Ok(());
+        };
+        let params = json!({ "entryId": entry.id });
+        drop(self.send("Page.navigateToHistoryEntry", params).await?);
+        expect_page(self)
+            .to_have_url(TextMatch::Exact(entry.url.clone()))
+            .await?;
+        self.wait_for_load_state(LoadState::DomContentLoaded).await
     }
 }

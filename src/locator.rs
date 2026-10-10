@@ -1,13 +1,18 @@
+mod actions;
+mod aria;
+mod chain;
+mod drag;
 mod forms;
 mod reads;
 mod refs;
 
+pub(crate) use aria::{aria_probe, aria_template, aria_text};
+pub use chain::ActionOptions;
 pub use forms::SelectBy;
 
-use crate::dom::{Actionable, Blocker, BoundingBox, ClickResult, Read};
+use crate::dom::{Actionable, Need};
 use crate::error::Error;
 use crate::frames::Context;
-use crate::input::{ClickOptions, MouseButton};
 use crate::selector::{Selector, TextMatch};
 use crate::session::{Session, World};
 use serde::de::DeserializeOwned;
@@ -20,6 +25,7 @@ pub struct Locator<'a> {
     index: Option<usize>,
     frames: Vec<Selector>,
     context: Option<Context>,
+    options: ActionOptions,
 }
 
 impl Session {
@@ -94,6 +100,7 @@ impl<'a> Locator<'a> {
             index: None,
             frames,
             context: None,
+            options: ActionOptions::default(),
         }
     }
 
@@ -126,6 +133,10 @@ impl<'a> Locator<'a> {
 
     pub(crate) fn timing(&self) -> crate::Timing {
         self.session.timing()
+    }
+
+    pub(crate) fn wait(&self) -> Duration {
+        self.options.timeout.unwrap_or(self.session.timing().wait)
     }
 
     pub(crate) async fn poll(
@@ -174,10 +185,10 @@ impl<'a> Locator<'a> {
         Ok(0..self.count().await?)
     }
 
-    async fn settle_within(&mut self, timeout: Duration) -> Result<Actionable, Error> {
+    async fn settle_within(&mut self, timeout: Duration, need: Need) -> Result<Actionable, Error> {
         let context = self.context().await?;
         let frame_wait = self.session.timing().actionable;
-        let settled = context.wrap(&self.selector.settled_expr(self.index, frame_wait));
+        let settled = context.wrap(&self.selector.settled_expr(self.index, frame_wait, need));
         let mut verdict: Actionable = match self
             .session
             .poll_expression_in(context.session_id(), World::Isolated, &settled, timeout)
@@ -185,8 +196,8 @@ impl<'a> Locator<'a> {
         {
             Ok(serde_json::Value::String(json)) => serde_json::from_str(&json)?,
             Ok(_) | Err(Error::Timeout(_)) => {
-                self.eval(&self.selector.actionable_expr(self.index, frame_wait))
-                    .await?
+                let probe = self.selector.actionable_expr(self.index, frame_wait, need);
+                self.eval(&probe).await?
             }
             Err(error) => return Err(error),
         };
@@ -195,133 +206,14 @@ impl<'a> Locator<'a> {
         }
         let context = self.context().await?;
         verdict.bounds = verdict.bounds.map(|bounds| context.shift(bounds));
+        if let Some(cover) = verdict.covered_by.take() {
+            verdict.covered_by = Some(self.cover_label(cover).await);
+        }
         Ok(verdict)
     }
 
     pub async fn settle(&mut self) -> Result<Actionable, Error> {
         let timeout = self.session.timing().actionable;
-        self.settle_within(timeout).await
-    }
-
-    async fn await_frame_hit(&mut self, bounds: BoundingBox) -> Result<(), Error> {
-        let (x, y) = bounds.center();
-        let probe = format!(
-            "(()=>{{const e=document.elementFromPoint({x},{y});return !!e&&e.tagName==='IFRAME';}})()"
-        );
-        let timeout = self.session.timing().actionable;
-        match self
-            .session
-            .poll_expression_in(None, World::Isolated, &probe, timeout)
-            .await
-        {
-            Ok(_) | Err(Error::Timeout(_)) => Ok(()),
-            Err(error) => Err(error),
-        }
-    }
-
-    async fn actionable_box(&mut self) -> Result<BoundingBox, Error> {
-        let timeout = self.session.timing().wait;
-        let verdict = self.settle_within(timeout).await?;
-        match (verdict.ok, verdict.bounds) {
-            (true, Some(bounds)) => {
-                if !self.frames.is_empty() {
-                    self.await_frame_hit(bounds).await?;
-                }
-                Ok(bounds)
-            }
-            _ => Err(Error::NotActionable {
-                reason: verdict.reason,
-                covered_by: verdict.covered_by,
-                selector: self.selector.clone(),
-            }),
-        }
-    }
-
-    pub async fn click(&mut self) -> Result<(), Error> {
-        self.click_checked(ClickOptions::default()).await
-    }
-
-    pub(crate) async fn click_checked(&mut self, options: ClickOptions) -> Result<(), Error> {
-        let deadline = tokio::time::Instant::now() + self.session.timing().wait;
-        loop {
-            let bounds = self.actionable_box().await?;
-            let (x, y) = options.position.map_or_else(
-                || bounds.center(),
-                |(dx, dy)| (bounds.x + dx, bounds.y + dy),
-            );
-            let arm = format!(
-                "(el=>{{globalThis.__charmHit=false;window.addEventListener('pointerdown',e=>{{globalThis.__charmHit=!!el&&(el===e.target||el.contains(e.target));}},{{capture:true,once:true}});return true;}})({})",
-                self.element_expr()
-            );
-            drop(self.eval::<serde_json::Value>(&arm).await?);
-            self.session.click_at(x, y, options).await?;
-            if self.eval::<bool>("globalThis.__charmHit===true").await? {
-                return Ok(());
-            }
-            if tokio::time::Instant::now() >= deadline {
-                return Err(Error::NotActionable {
-                    reason: Some(Blocker::Obscured),
-                    covered_by: None,
-                    selector: self.selector.clone(),
-                });
-            }
-            self.context = None;
-            let pause = self.session.timing().poll;
-            self.session.idle(pause).await?;
-        }
-    }
-
-    pub async fn try_click(&mut self) -> Result<ClickResult, Error> {
-        let verdict = self.settle().await?;
-        match (verdict.ok, verdict.bounds) {
-            (true, Some(bounds)) => {
-                let (x, y) = bounds.center();
-                self.session.mouse_click(x, y, MouseButton::Left).await?;
-                Ok(ClickResult {
-                    clicked: true,
-                    reason: None,
-                    covered_by: None,
-                })
-            }
-            _ => Ok(ClickResult {
-                clicked: false,
-                reason: verdict.reason,
-                covered_by: verdict.covered_by,
-            }),
-        }
-    }
-
-    pub async fn hover(&mut self) -> Result<(), Error> {
-        let (x, y) = self.actionable_box().await?.center();
-        self.session.mouse_move(x, y).await
-    }
-
-    pub async fn fill(&mut self, text: &str) -> Result<(), Error> {
-        let element = self.selector.one_expr(self.index);
-        let ready = format!(
-            "({}&&{})",
-            Read::Visible.expr(&element),
-            Read::Enabled.expr(&element)
-        );
-        let timeout = self.session.timing().wait;
-        drop(self.poll(&ready, timeout).await?);
-        let select = format!(
-            "(el=>{{el.focus();if(typeof el.select==='function'){{el.select();return true}}const r=document.createRange();r.selectNodeContents(el);const s=getSelection();s.removeAllRanges();s.addRange(r);return true}})({element})"
-        );
-        drop(self.eval::<serde_json::Value>(&select).await?);
-        if text.is_empty() {
-            return self.session.press("Backspace").await;
-        }
-        drop(
-            self.session
-                .send("Input.insertText", serde_json::json!({ "text": text }))
-                .await?,
-        );
-        Ok(())
-    }
-
-    pub async fn type_text(&mut self, text: &str) -> Result<(), Error> {
-        self.click().await?;
-        self.session.type_chars(text).await
+        self.settle_within(timeout, Need::Pointer).await
     }
 }

@@ -1,9 +1,11 @@
 use crate::dom::Read;
 use crate::error::Error;
-use crate::locator::Locator;
+use crate::locator::{Locator, aria_probe, aria_template, aria_text};
 use crate::selector::{Selector, TextMatch, quote};
 use crate::session::{Session, World};
+use serde_json::Value;
 use std::ops::Not;
+use tokio::time::Instant;
 
 fn describe(matcher: &TextMatch) -> String {
     match matcher {
@@ -175,6 +177,74 @@ impl LocatorExpect<'_, '_> {
         let label = format!("to have attribute {}", quote(name));
         let check = self.text(&Read::Attribute(name), &label, &expected.into(), true);
         self.run(check).await
+    }
+
+    pub async fn to_be_editable(self) -> Result<(), Error> {
+        let check = self.flag(&Read::Editable, "to be editable", true);
+        self.run(check).await
+    }
+
+    pub async fn to_be_empty(self) -> Result<(), Error> {
+        let check = self.flag(&Read::Empty, "to be empty", true);
+        self.run(check).await
+    }
+
+    pub async fn to_be_in_viewport(self) -> Result<(), Error> {
+        let check = self.flag(&Read::InViewport, "to be in viewport", true);
+        self.run(check).await
+    }
+
+    pub async fn to_have_class(self, expected: impl Into<TextMatch>) -> Result<(), Error> {
+        let check = self.text(&Read::Class, "to have class", &expected.into(), false);
+        self.run(check).await
+    }
+
+    pub async fn to_have_id(self, expected: impl Into<TextMatch>) -> Result<(), Error> {
+        let check = self.text(&Read::Id, "to have id", &expected.into(), true);
+        self.run(check).await
+    }
+
+    pub async fn to_have_css(
+        self,
+        property: &str,
+        expected: impl Into<TextMatch>,
+    ) -> Result<(), Error> {
+        let label = format!("to have CSS {}", quote(property));
+        let check = self.text(&Read::Css(property), &label, &expected.into(), true);
+        self.run(check).await
+    }
+
+    pub async fn to_have_js_property(self, name: &str, expected: &Value) -> Result<(), Error> {
+        let check = Check {
+            expected: format!("to have JS property {} {expected}", quote(name)),
+            value: Read::JsProperty(name).expr(&self.locator.element_expr()),
+            pass: format!("JSON.stringify(v)===JSON.stringify({expected})"),
+        };
+        self.run(check).await
+    }
+
+    pub async fn to_match_aria_snapshot(self, expected: &str) -> Result<(), Error> {
+        let template = aria_template(expected)?;
+        let timeout = self.locator.timing().wait;
+        let deadline = Instant::now() + timeout;
+        let attached = Read::Attached.expr(&self.locator.element_expr());
+        drop(self.locator.poll(&attached, timeout).await?);
+        loop {
+            let nodes = self.locator.aria_tree().await?;
+            let probe = aria_probe(&template, &nodes);
+            if self.locator.value(&probe).await? == Value::Bool(self.want) {
+                return Ok(());
+            }
+            if Instant::now() >= deadline {
+                let prefix = if self.want { "" } else { "not " };
+                return Err(Error::Assertion {
+                    expected: format!("{prefix}to match aria snapshot\n{expected}"),
+                    received: aria_text(&nodes),
+                    selector: Some(self.locator.selector().clone()),
+                });
+            }
+            self.locator.pause().await?;
+        }
     }
 
     pub async fn to_have_count(self, count: usize) -> Result<(), Error> {

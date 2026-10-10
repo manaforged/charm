@@ -2,6 +2,7 @@
 
 | Item | Kind | Description |
 | --- | --- | --- |
+| [`ActionOptions`](#actionoptions) | struct |  |
 | [`Actionable`](#actionable) | struct |  |
 | [`BoundingBox`](#boundingbox) | struct |  |
 | [`ClickOptions`](#clickoptions) | struct |  |
@@ -12,7 +13,9 @@
 | [`Cookie`](#cookie) | struct |  |
 | [`DeviceSpec`](#devicespec) | struct |  |
 | [`Dialog`](#dialog) | struct |  |
+| [`Download`](#download) | struct |  |
 | [`Events`](#events) | struct |  |
+| [`Filter`](#filter) | struct |  |
 | [`FrameInfo`](#frameinfo) | struct |  |
 | [`FrameLocator`](#framelocator) | struct |  |
 | [`Geolocation`](#geolocation) | struct |  |
@@ -24,6 +27,8 @@
 | [`NodeRef`](#noderef) | struct |  |
 | [`ObservedRequest`](#observedrequest) | struct |  |
 | [`ObservedResponse`](#observedresponse) | struct |  |
+| [`OriginStorage`](#originstorage) | struct |  |
+| [`Outcome`](#outcome) | struct |  |
 | [`PageExpect`](#pageexpect) | struct |  |
 | [`PageId`](#pageid) | struct |  |
 | [`PageInfo`](#pageinfo) | struct |  |
@@ -33,8 +38,12 @@
 | [`Snapshot`](#snapshot) | struct |  |
 | [`SnapshotNode`](#snapshotnode) | struct |  |
 | [`SnapshotOptions`](#snapshotoptions) | struct |  |
+| [`StorageEntry`](#storageentry) | struct |  |
+| [`StorageState`](#storagestate) | struct |  |
 | [`Timing`](#timing) | struct |  |
 | [`Viewport`](#viewport) | struct |  |
+| [`ActReport`](#actreport) | enum |  |
+| [`Action`](#action) | enum |  |
 | [`Blocker`](#blocker) | enum |  |
 | [`Checked`](#checked) | enum |  |
 | [`ColorScheme`](#colorscheme) | enum |  |
@@ -42,6 +51,7 @@
 | [`Device`](#device) | enum |  |
 | [`DialogKind`](#dialogkind) | enum |  |
 | [`DialogPolicy`](#dialogpolicy) | enum |  |
+| [`DownloadState`](#downloadstate) | enum |  |
 | [`Endpoint`](#endpoint) | enum |  |
 | [`Error`](#error) | enum |  |
 | [`ErrorReason`](#errorreason) | enum |  |
@@ -49,22 +59,37 @@
 | [`LoadState`](#loadstate) | enum |  |
 | [`MouseButton`](#mousebutton) | enum |  |
 | [`PaperSize`](#papersize) | enum |  |
+| [`Position`](#position) | enum |  |
 | [`RouteAction`](#routeaction) | enum |  |
 | [`SameSite`](#samesite) | enum |  |
 | [`ScriptError`](#scripterror) | enum |  |
 | [`ScriptTag`](#scripttag) | enum |  |
 | [`SelectBy`](#selectby) | enum |  |
 | [`Selector`](#selector) | enum |  |
+| [`TabAction`](#tabaction) | enum |  |
 | [`TextFormat`](#textformat) | enum |  |
 | [`TextMatch`](#textmatch) | enum |  |
 | [`Throttle`](#throttle) | enum |  |
 | [`UrlMatch`](#urlmatch) | enum |  |
+| [`WaitFor`](#waitfor) | enum |  |
 | [`expect`](#expect) | fn |  |
 | [`expect_page`](#expect_page) | fn |  |
 | [`resolve`](#resolve) | fn |  |
 | [`FORBIDDEN_METHODS`](#forbidden_methods) | const |  |
 
 ## Structs
+
+### `ActionOptions`
+
+**Fields**
+
+| Field | Description |
+| --- | --- |
+| <code>force: bool</code> |  |
+| <code>timeout: Option&lt;Duration&gt;</code> |  |
+
+**Trait implementations:** <code>Clone</code>, <code>Eq</code>, <code>PartialEq</code>, <code>Default</code>, <code>Debug</code>, <code>Copy</code>, <code>StructuralPartialEq</code>
+
 
 ### `Actionable`
 
@@ -216,6 +241,21 @@
 **Trait implementations:** <code>Clone</code>, <code>Eq</code>, <code>PartialEq</code>, <code>Debug</code>, <code>StructuralPartialEq</code>
 
 
+### `Download`
+
+**Fields**
+
+| Field | Description |
+| --- | --- |
+| <code>guid: String</code> |  |
+| <code>path: Option&lt;PathBuf&gt;</code> |  |
+| <code>state: <a href="#downloadstate">DownloadState</a></code> |  |
+| <code>suggested_filename: String</code> |  |
+| <code>url: String</code> |  |
+
+**Trait implementations:** <code>Clone</code>, <code>Eq</code>, <code>PartialEq</code>, <code>Debug</code>, <code>StructuralPartialEq</code>
+
+
 ### `Events`
 
 **Methods**
@@ -232,6 +272,21 @@
 | <code>runtime: bool</code> |  |
 
 **Trait implementations:** <code>Clone</code>, <code>Eq</code>, <code>PartialEq</code>, <code>Default</code>, <code>Debug</code>, <code>Copy</code>, <code>StructuralPartialEq</code>
+
+
+### `Filter`
+
+**Fields**
+
+| Field | Description |
+| --- | --- |
+| <code>has: Option&lt;<a href="#selector">Selector</a>&gt;</code> |  |
+| <code>has_not: Option&lt;<a href="#selector">Selector</a>&gt;</code> |  |
+| <code>has_not_text: Option&lt;<a href="#textmatch">TextMatch</a>&gt;</code> |  |
+| <code>has_text: Option&lt;<a href="#textmatch">TextMatch</a>&gt;</code> |  |
+| <code>visible: Option&lt;bool&gt;</code> |  |
+
+**Trait implementations:** <code>Clone</code>, <code>Eq</code>, <code>PartialEq</code>, <code>Default</code>, <code>Debug</code>, <code>StructuralPartialEq</code>
 
 
 ### `FrameInfo`
@@ -287,6 +342,7 @@
 | <code>offscreen(self) -&gt; Self</code> |  |
 | <code>profile(self, dir: impl Into&lt;PathBuf&gt;) -&gt; Self</code> |  |
 | <code>proxy(self, url: impl Into&lt;String&gt;) -&gt; Self</code> |  |
+| <code>storage_state(self, state: <a href="#storagestate">StorageState</a>) -&gt; Self</code> |  |
 | <code>timing(self, timing: <a href="#timing">Timing</a>) -&gt; Self</code> |  |
 | <code>url(self, url: impl Into&lt;String&gt;) -&gt; Self</code> |  |
 
@@ -299,6 +355,12 @@
 
 | Method | Description |
 | --- | --- |
+| <code>pub fn <a href="#locator">Locator</a>&lt;'_&gt;::and(self, other: impl Into&lt;<a href="#selector">Selector</a>&gt;) -&gt; Self</code> |  |
+| <code>pub fn <a href="#locator">Locator</a>&lt;'_&gt;::filter(self, filter: <a href="#filter">Filter</a>) -&gt; Self</code> |  |
+| <code>pub fn <a href="#locator">Locator</a>&lt;'_&gt;::last(self) -&gt; Self</code> |  |
+| <code>pub fn <a href="#locator">Locator</a>&lt;'_&gt;::locator(self, inner: impl Into&lt;<a href="#selector">Selector</a>&gt;) -&gt; Self</code> |  |
+| <code>pub fn <a href="#locator">Locator</a>&lt;'_&gt;::or(self, other: impl Into&lt;<a href="#selector">Selector</a>&gt;) -&gt; Self</code> |  |
+| <code>pub fn <a href="#locator">Locator</a>&lt;'_&gt;::with_options(self, options: <a href="#actionoptions">ActionOptions</a>) -&gt; Self</code> |  |
 | <code>pub async fn <a href="#locator">Locator</a>&lt;'_&gt;::attribute(&amp;mut self, name: &amp;str) -&gt; Result&lt;Option&lt;String&gt;, <a href="#error">Error</a>&gt;</code> |  |
 | <code>pub async fn <a href="#locator">Locator</a>&lt;'_&gt;::bounding_box(&amp;mut self) -&gt; Result&lt;Option&lt;<a href="#boundingbox">BoundingBox</a>&gt;, <a href="#error">Error</a>&gt;</code> |  |
 | <code>pub async fn <a href="#locator">Locator</a>&lt;'_&gt;::inner_text(&amp;mut self) -&gt; Result&lt;Option&lt;String&gt;, <a href="#error">Error</a>&gt;</code> |  |
@@ -322,17 +384,17 @@
 | <code>pub async fn <a href="#locator">Locator</a>&lt;'_&gt;::set_checked(&amp;mut self, checked: bool) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>pub async fn <a href="#locator">Locator</a>&lt;'_&gt;::set_input_files(&amp;mut self, files: Vec&lt;PathBuf&gt;) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>pub async fn <a href="#locator">Locator</a>&lt;'_&gt;::uncheck(&amp;mut self) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+| <code>pub async fn <a href="#locator">Locator</a>&lt;'_&gt;::click(&amp;mut self) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+| <code>pub async fn <a href="#locator">Locator</a>&lt;'_&gt;::fill(&amp;mut self, text: &amp;str) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+| <code>pub async fn <a href="#locator">Locator</a>&lt;'_&gt;::hover(&amp;mut self) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+| <code>pub async fn <a href="#locator">Locator</a>&lt;'_&gt;::try_click(&amp;mut self) -&gt; Result&lt;<a href="#clickresult">ClickResult</a>, <a href="#error">Error</a>&gt;</code> |  |
+| <code>pub async fn <a href="#locator">Locator</a>&lt;'_&gt;::type_text(&amp;mut self, text: &amp;str) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>pub async fn <a href="#locator">Locator</a>&lt;'a&gt;::all(&amp;mut self) -&gt; Result&lt;Range&lt;usize&gt;, <a href="#error">Error</a>&gt;</code> |  |
-| <code>pub async fn <a href="#locator">Locator</a>&lt;'a&gt;::click(&amp;mut self) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>pub async fn <a href="#locator">Locator</a>&lt;'a&gt;::count(&amp;mut self) -&gt; Result&lt;usize, <a href="#error">Error</a>&gt;</code> |  |
-| <code>pub async fn <a href="#locator">Locator</a>&lt;'a&gt;::fill(&amp;mut self, text: &amp;str) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>pub fn <a href="#locator">Locator</a>&lt;'a&gt;::first(self) -&gt; Self</code> |  |
-| <code>pub async fn <a href="#locator">Locator</a>&lt;'a&gt;::hover(&amp;mut self) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>pub fn <a href="#locator">Locator</a>&lt;'a&gt;::nth(self, index: usize) -&gt; Self</code> |  |
 | <code>pub fn <a href="#locator">Locator</a>&lt;'a&gt;::selector(&amp;self) -&gt; &amp;<a href="#selector">Selector</a></code> |  |
 | <code>pub async fn <a href="#locator">Locator</a>&lt;'a&gt;::settle(&amp;mut self) -&gt; Result&lt;<a href="#actionable">Actionable</a>, <a href="#error">Error</a>&gt;</code> |  |
-| <code>pub async fn <a href="#locator">Locator</a>&lt;'a&gt;::try_click(&amp;mut self) -&gt; Result&lt;<a href="#clickresult">ClickResult</a>, <a href="#error">Error</a>&gt;</code> |  |
-| <code>pub async fn <a href="#locator">Locator</a>&lt;'a&gt;::type_text(&amp;mut self, text: &amp;str) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 
 
 ### `LocatorExpect`
@@ -344,15 +406,23 @@
 | <code>pub async fn <a href="#locatorexpect">LocatorExpect</a>&lt;'_, '_&gt;::to_be_attached(self) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>pub async fn <a href="#locatorexpect">LocatorExpect</a>&lt;'_, '_&gt;::to_be_checked(self) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>pub async fn <a href="#locatorexpect">LocatorExpect</a>&lt;'_, '_&gt;::to_be_disabled(self) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+| <code>pub async fn <a href="#locatorexpect">LocatorExpect</a>&lt;'_, '_&gt;::to_be_editable(self) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+| <code>pub async fn <a href="#locatorexpect">LocatorExpect</a>&lt;'_, '_&gt;::to_be_empty(self) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>pub async fn <a href="#locatorexpect">LocatorExpect</a>&lt;'_, '_&gt;::to_be_enabled(self) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>pub async fn <a href="#locatorexpect">LocatorExpect</a>&lt;'_, '_&gt;::to_be_focused(self) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>pub async fn <a href="#locatorexpect">LocatorExpect</a>&lt;'_, '_&gt;::to_be_hidden(self) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+| <code>pub async fn <a href="#locatorexpect">LocatorExpect</a>&lt;'_, '_&gt;::to_be_in_viewport(self) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>pub async fn <a href="#locatorexpect">LocatorExpect</a>&lt;'_, '_&gt;::to_be_visible(self) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>pub async fn <a href="#locatorexpect">LocatorExpect</a>&lt;'_, '_&gt;::to_contain_text(self, expected: impl Into&lt;<a href="#textmatch">TextMatch</a>&gt;) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>pub async fn <a href="#locatorexpect">LocatorExpect</a>&lt;'_, '_&gt;::to_have_attribute(self, name: &amp;str, expected: impl Into&lt;<a href="#textmatch">TextMatch</a>&gt;) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+| <code>pub async fn <a href="#locatorexpect">LocatorExpect</a>&lt;'_, '_&gt;::to_have_class(self, expected: impl Into&lt;<a href="#textmatch">TextMatch</a>&gt;) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>pub async fn <a href="#locatorexpect">LocatorExpect</a>&lt;'_, '_&gt;::to_have_count(self, count: usize) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+| <code>pub async fn <a href="#locatorexpect">LocatorExpect</a>&lt;'_, '_&gt;::to_have_css(self, property: &amp;str, expected: impl Into&lt;<a href="#textmatch">TextMatch</a>&gt;) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+| <code>pub async fn <a href="#locatorexpect">LocatorExpect</a>&lt;'_, '_&gt;::to_have_id(self, expected: impl Into&lt;<a href="#textmatch">TextMatch</a>&gt;) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+| <code>pub async fn <a href="#locatorexpect">LocatorExpect</a>&lt;'_, '_&gt;::to_have_js_property(self, name: &amp;str, expected: &amp;Value) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>pub async fn <a href="#locatorexpect">LocatorExpect</a>&lt;'_, '_&gt;::to_have_text(self, expected: impl Into&lt;<a href="#textmatch">TextMatch</a>&gt;) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>pub async fn <a href="#locatorexpect">LocatorExpect</a>&lt;'_, '_&gt;::to_have_value(self, expected: impl Into&lt;<a href="#textmatch">TextMatch</a>&gt;) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+| <code>pub async fn <a href="#locatorexpect">LocatorExpect</a>&lt;'_, '_&gt;::to_match_aria_snapshot(self, expected: &amp;str) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 
 **Trait implementations:** <code>Not</code>
 
@@ -425,6 +495,35 @@
 | <code>resource_type: String</code> |  |
 | <code>status: u16</code> |  |
 | <code>url: String</code> |  |
+
+**Trait implementations:** <code>Clone</code>, <code>Eq</code>, <code>PartialEq</code>, <code>Debug</code>, <code>StructuralPartialEq</code>
+
+
+### `OriginStorage`
+
+**Fields**
+
+| Field | Description |
+| --- | --- |
+| <code>local_storage: Vec&lt;<a href="#storageentry">StorageEntry</a>&gt;</code> |  |
+| <code>origin: String</code> |  |
+
+**Trait implementations:** <code>Clone</code>, <code>Eq</code>, <code>PartialEq</code>, <code>Default</code>, <code>Debug</code>, <code>StructuralPartialEq</code>, <code>Serialize</code>, <code>Deserialize&lt;'de&gt;</code>
+
+
+### `Outcome`
+
+**Fields**
+
+| Field | Description |
+| --- | --- |
+| <code>console_errors: usize</code> |  |
+| <code>dialogs: Vec&lt;<a href="#dialog">Dialog</a>&gt;</code> |  |
+| <code>new_pages: Vec&lt;<a href="#pageid">PageId</a>&gt;</code> |  |
+| <code>snapshot: Option&lt;String&gt;</code> |  |
+| <code>title: String</code> |  |
+| <code>url_after: String</code> |  |
+| <code>url_before: String</code> |  |
 
 **Trait implementations:** <code>Clone</code>, <code>Eq</code>, <code>PartialEq</code>, <code>Debug</code>, <code>StructuralPartialEq</code>
 
@@ -502,9 +601,11 @@
 
 | Method | Description |
 | --- | --- |
+| <code>async act(&amp;mut self, action: <a href="#action">Action</a>, report: <a href="#actreport">ActReport</a>) -&gt; Result&lt;<a href="#outcome">Outcome</a>, <a href="#error">Error</a>&gt;</code> |  |
 | <code>active_page(&amp;self) -&gt; &amp;<a href="#pageid">PageId</a></code> |  |
 | <code>async close_page(&amp;mut self, id: &amp;<a href="#pageid">PageId</a>) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>async new_page(&amp;mut self, url: Option&lt;&amp;str&gt;) -&gt; Result&lt;<a href="#pageid">PageId</a>, <a href="#error">Error</a>&gt;</code> |  |
+| <code>async page_info(&amp;mut self, id: &amp;<a href="#pageid">PageId</a>) -&gt; Result&lt;<a href="#pageinfo">PageInfo</a>, <a href="#error">Error</a>&gt;</code> |  |
 | <code>async pages(&amp;mut self) -&gt; Result&lt;Vec&lt;<a href="#pageinfo">PageInfo</a>&gt;, <a href="#error">Error</a>&gt;</code> |  |
 | <code>async select_page(&amp;mut self, id: &amp;<a href="#pageid">PageId</a>) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>async wait_for_page(&amp;mut self) -&gt; Result&lt;<a href="#pageid">PageId</a>, <a href="#error">Error</a>&gt;</code> |  |
@@ -576,12 +677,19 @@
 | <code>dialogs(&amp;mut self) -&gt; Vec&lt;<a href="#dialog">Dialog</a>&gt;</code> |  |
 | <code>dropped_records(&amp;mut self) -&gt; u64</code> |  |
 | <code>async set_events(&amp;mut self, events: <a href="#events">Events</a>, policy: <a href="#dialogpolicy">DialogPolicy</a>) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+| <code>downloads(&amp;mut self) -&gt; Vec&lt;<a href="#download">Download</a>&gt;</code> |  |
+| <code>async on_file_chooser(&amp;mut self, files: Vec&lt;PathBuf&gt;) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+| <code>async set_downloads(&amp;mut self, dir: PathBuf) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+| <code>async wait_for_download(&amp;mut self) -&gt; Result&lt;<a href="#download">Download</a>, <a href="#error">Error</a>&gt;</code> |  |
 | <code>frame_locator(&amp;mut self, selector: impl Into&lt;<a href="#selector">Selector</a>&gt;) -&gt; <a href="#framelocator">FrameLocator</a>&lt;'_&gt;</code> |  |
 | <code>async frames(&amp;mut self) -&gt; Result&lt;Vec&lt;<a href="#frameinfo">FrameInfo</a>&gt;, <a href="#error">Error</a>&gt;</code> |  |
+| <code>async go_back(&amp;mut self) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+| <code>async go_forward(&amp;mut self) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>async route(&amp;mut self, url: <a href="#urlmatch">UrlMatch</a>, action: <a href="#routeaction">RouteAction</a>) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>async unroute(&amp;mut self, url: <a href="#urlmatch">UrlMatch</a>) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
 | <code>set_human_input(&amp;mut self, cursor: Option&lt;<a href="charm-human.html#cursoroptions">CursorOptions</a>&gt;)</code> |  |
 | <code>async snapshot(&amp;mut self, options: <a href="#snapshotoptions">SnapshotOptions</a>) -&gt; Result&lt;<a href="#snapshot">Snapshot</a>, <a href="#error">Error</a>&gt;</code> |  |
+| <code>async storage_state(&amp;mut self) -&gt; Result&lt;<a href="#storagestate">StorageState</a>, <a href="#error">Error</a>&gt;</code> |  |
 | <code>async text(&amp;mut self, format: <a href="#textformat">TextFormat</a>, max_chars: usize) -&gt; Result&lt;String, <a href="#error">Error</a>&gt;</code> |  |
 | <code>async wait_for_function(&amp;mut self, expression: &amp;str) -&gt; Result&lt;Value, <a href="#error">Error</a>&gt;</code> |  |
 | <code>async wait_for_load_state(&amp;mut self, state: <a href="#loadstate">LoadState</a>) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
@@ -596,9 +704,14 @@
 
 | Method | Description |
 | --- | --- |
+| <code>diff(&amp;self, previous: &amp;<a href="#snapshot">Snapshot</a>) -&gt; String</code> |  |
+| <code>header(&amp;self) -&gt; String</code> |  |
 | <code>nodes(&amp;self) -&gt; &amp;[<a href="#snapshotnode">SnapshotNode</a>]</code> |  |
+| <code>page(&amp;self) -&gt; &amp;<a href="#pageid">PageId</a></code> |  |
 | <code>text(&amp;self) -&gt; String</code> |  |
+| <code>title(&amp;self) -&gt; &amp;str</code> |  |
 | <code>truncated(&amp;self) -&gt; bool</code> |  |
+| <code>url(&amp;self) -&gt; &amp;str</code> |  |
 
 **Trait implementations:** <code>Clone</code>, <code>Eq</code>, <code>PartialEq</code>, <code>Debug</code>, <code>StructuralPartialEq</code>
 
@@ -630,11 +743,46 @@
 
 | Field | Description |
 | --- | --- |
+| <code>depth: Option&lt;usize&gt;</code> |  |
 | <code>frames: bool</code> |  |
+| <code>interactive_only: bool</code> |  |
 | <code>interesting_only: bool</code> |  |
+| <code>max_chars: Option&lt;usize&gt;</code> |  |
 | <code>max_nodes: usize</code> |  |
+| <code>scope: Option&lt;<a href="#selector">Selector</a>&gt;</code> |  |
 
-**Trait implementations:** <code>Clone</code>, <code>Eq</code>, <code>PartialEq</code>, <code>Default</code>, <code>Debug</code>, <code>Copy</code>, <code>StructuralPartialEq</code>
+**Trait implementations:** <code>Clone</code>, <code>Eq</code>, <code>PartialEq</code>, <code>Default</code>, <code>Debug</code>, <code>StructuralPartialEq</code>
+
+
+### `StorageEntry`
+
+**Fields**
+
+| Field | Description |
+| --- | --- |
+| <code>name: String</code> |  |
+| <code>value: String</code> |  |
+
+**Trait implementations:** <code>Clone</code>, <code>Eq</code>, <code>PartialEq</code>, <code>Default</code>, <code>Debug</code>, <code>StructuralPartialEq</code>, <code>Serialize</code>, <code>Deserialize&lt;'de&gt;</code>
+
+
+### `StorageState`
+
+**Methods**
+
+| Method | Description |
+| --- | --- |
+| <code>load(path: impl AsRef&lt;Path&gt;) -&gt; Result&lt;Self, <a href="#error">Error</a>&gt;</code> |  |
+| <code>save(&amp;self, path: impl AsRef&lt;Path&gt;) -&gt; Result&lt;(), <a href="#error">Error</a>&gt;</code> |  |
+
+**Fields**
+
+| Field | Description |
+| --- | --- |
+| <code>cookies: Vec&lt;<a href="#cookie">Cookie</a>&gt;</code> |  |
+| <code>origins: Vec&lt;<a href="#originstorage">OriginStorage</a>&gt;</code> |  |
+
+**Trait implementations:** <code>Clone</code>, <code>PartialEq</code>, <code>Default</code>, <code>Debug</code>, <code>StructuralPartialEq</code>, <code>Serialize</code>, <code>Deserialize&lt;'de&gt;</code>
 
 
 ### `Timing`
@@ -674,6 +822,71 @@
 
 ## Enums
 
+### `ActReport`
+
+**Variants**
+
+| Variant | Description |
+| --- | --- |
+| <code>Delta</code> |  |
+| <code>Full</code> |  |
+| <code>None</code> |  |
+
+**Trait implementations:** <code>Clone</code>, <code>Eq</code>, <code>PartialEq</code>, <code>Default</code>, <code>Debug</code>, <code>Copy</code>, <code>StructuralPartialEq</code>, <code>Deserialize&lt;'de&gt;</code>
+
+
+### `Action`
+
+**Fields**
+
+| Field | Description |
+| --- | --- |
+| <code>Check::checked: bool</code> |  |
+| <code>Check::target: <a href="#selector">Selector</a></code> |  |
+| <code>Click::options: <a href="#clickoptions">ClickOptions</a></code> |  |
+| <code>Click::target: <a href="#selector">Selector</a></code> |  |
+| <code>Drag::from: <a href="#selector">Selector</a></code> |  |
+| <code>Drag::to: <a href="#selector">Selector</a></code> |  |
+| <code>Fill::target: <a href="#selector">Selector</a></code> |  |
+| <code>Fill::text: String</code> |  |
+| <code>Hover::target: <a href="#selector">Selector</a></code> |  |
+| <code>Navigate::url: String</code> |  |
+| <code>Press::key: String</code> |  |
+| <code>Press::target: Option&lt;<a href="#selector">Selector</a>&gt;</code> |  |
+| <code>Scroll::delta_y: f64</code> |  |
+| <code>Scroll::target: Option&lt;<a href="#selector">Selector</a>&gt;</code> |  |
+| <code>Select::by: <a href="#selectby">SelectBy</a></code> |  |
+| <code>Select::target: <a href="#selector">Selector</a></code> |  |
+| <code>Type::target: <a href="#selector">Selector</a></code> |  |
+| <code>Type::text: String</code> |  |
+| <code>Upload::files: Vec&lt;PathBuf&gt;</code> |  |
+| <code>Upload::target: <a href="#selector">Selector</a></code> |  |
+| <code>Wait::for_: <a href="#waitfor">WaitFor</a></code> |  |
+
+**Variants**
+
+| Variant | Description |
+| --- | --- |
+| <code>Back</code> |  |
+| <code>Check</code> |  |
+| <code>Click</code> |  |
+| <code>Drag</code> |  |
+| <code>Fill</code> |  |
+| <code>Forward</code> |  |
+| <code>Hover</code> |  |
+| <code>Navigate</code> |  |
+| <code>Press</code> |  |
+| <code>Reload</code> |  |
+| <code>Scroll</code> |  |
+| <code>Select</code> |  |
+| <code>Tab(<a href="#tabaction">TabAction</a>)</code> |  |
+| <code>Type</code> |  |
+| <code>Upload</code> |  |
+| <code>Wait</code> |  |
+
+**Trait implementations:** <code>Clone</code>, <code>PartialEq</code>, <code>Debug</code>, <code>StructuralPartialEq</code>, <code>Deserialize&lt;'de&gt;</code>
+
+
 ### `Blocker`
 
 **Variants**
@@ -683,6 +896,7 @@
 | <code>Detached</code> |  |
 | <code>Disabled</code> |  |
 | <code>NoMatch</code> |  |
+| <code>NotEditable</code> |  |
 | <code>NotVisible</code> |  |
 | <code>Obscured</code> |  |
 | <code>Offscreen</code> |  |
@@ -782,6 +996,19 @@
 **Trait implementations:** <code>Clone</code>, <code>Eq</code>, <code>PartialEq</code>, <code>Default</code>, <code>Debug</code>, <code>StructuralPartialEq</code>
 
 
+### `DownloadState`
+
+**Variants**
+
+| Variant | Description |
+| --- | --- |
+| <code>Canceled</code> |  |
+| <code>Completed</code> |  |
+| <code>InProgress</code> |  |
+
+**Trait implementations:** <code>Clone</code>, <code>Eq</code>, <code>PartialEq</code>, <code>Debug</code>, <code>Copy</code>, <code>StructuralPartialEq</code>
+
+
 ### `Endpoint`
 
 **Variants**
@@ -808,6 +1035,7 @@
 | <code>NotActionable::covered_by: Option&lt;String&gt;</code> |  |
 | <code>NotActionable::reason: Option&lt;<a href="#blocker">Blocker</a>&gt;</code> |  |
 | <code>NotActionable::selector: <a href="#selector">Selector</a></code> |  |
+| <code>ProfileInUse::path: PathBuf</code> |  |
 | <code>Protocol::code: Option&lt;i64&gt;</code> |  |
 | <code>Protocol::message: String</code> |  |
 | <code>Protocol::method: String</code> |  |
@@ -830,6 +1058,7 @@
 | <code>Json(Error)</code> |  |
 | <code>MissingExe</code> |  |
 | <code>NotActionable</code> |  |
+| <code>ProfileInUse</code> |  |
 | <code>Protocol</code> |  |
 | <code>Script</code> |  |
 | <code>Spawn</code> |  |
@@ -925,6 +1154,18 @@
 **Trait implementations:** <code>Clone</code>, <code>Eq</code>, <code>PartialEq</code>, <code>Default</code>, <code>Debug</code>, <code>Copy</code>, <code>StructuralPartialEq</code>
 
 
+### `Position`
+
+**Variants**
+
+| Variant | Description |
+| --- | --- |
+| <code>Index(usize)</code> |  |
+| <code>Last</code> |  |
+
+**Trait implementations:** <code>Clone</code>, <code>Eq</code>, <code>PartialEq</code>, <code>Debug</code>, <code>Copy</code>, <code>StructuralPartialEq</code>
+
+
 ### `RouteAction`
 
 **Fields**
@@ -1008,27 +1249,52 @@
 | Method | Description |
 | --- | --- |
 | <code>parse(raw: &amp;str) -&gt; Self</code> |  |
+| <code>parse_target(raw: &amp;str) -&gt; Self</code> |  |
 
 **Fields**
 
 | Field | Description |
 | --- | --- |
+| <code>Filtered::base: Box&lt;<a href="#selector">Selector</a>&gt;</code> |  |
+| <code>Filtered::filter: Box&lt;<a href="#filter">Filter</a>&gt;</code> |  |
+| <code>Nth::at: <a href="#position">Position</a></code> |  |
+| <code>Nth::base: Box&lt;<a href="#selector">Selector</a>&gt;</code> |  |
 | <code>Role::name: Option&lt;<a href="#textmatch">TextMatch</a>&gt;</code> |  |
 | <code>Role::role: String</code> |  |
+| <code>Within::inner: Box&lt;<a href="#selector">Selector</a>&gt;</code> |  |
+| <code>Within::outer: Box&lt;<a href="#selector">Selector</a>&gt;</code> |  |
 
 **Variants**
 
 | Variant | Description |
 | --- | --- |
+| <code>And(Box&lt;<a href="#selector">Selector</a>&gt;, Box&lt;<a href="#selector">Selector</a>&gt;)</code> |  |
 | <code>Css(String)</code> |  |
+| <code>Filtered</code> |  |
 | <code>Label(<a href="#textmatch">TextMatch</a>)</code> |  |
+| <code>Nth</code> |  |
+| <code>Or(Box&lt;<a href="#selector">Selector</a>&gt;, Box&lt;<a href="#selector">Selector</a>&gt;)</code> |  |
 | <code>Ref(String)</code> |  |
 | <code>Role</code> |  |
 | <code>TestId(String)</code> |  |
 | <code>Text(<a href="#textmatch">TextMatch</a>)</code> |  |
+| <code>Within</code> |  |
 | <code>XPath(String)</code> |  |
 
 **Trait implementations:** <code>Clone</code>, <code>Eq</code>, <code>PartialEq</code>, <code>From&lt;&amp;String&gt;</code>, <code>From&lt;&amp;str&gt;</code>, <code>From&lt;String&gt;</code>, <code>Debug</code>, <code>StructuralPartialEq</code>
+
+
+### `TabAction`
+
+**Variants**
+
+| Variant | Description |
+| --- | --- |
+| <code>Close(<a href="#pageid">PageId</a>)</code> |  |
+| <code>New(Option&lt;String&gt;)</code> |  |
+| <code>Select(<a href="#pageid">PageId</a>)</code> |  |
+
+**Trait implementations:** <code>Clone</code>, <code>Eq</code>, <code>PartialEq</code>, <code>Debug</code>, <code>StructuralPartialEq</code>, <code>Deserialize&lt;'de&gt;</code>
 
 
 ### `TextFormat`
@@ -1108,6 +1374,21 @@
 | <code>Glob(String)</code> |  |
 
 **Trait implementations:** <code>Clone</code>, <code>Eq</code>, <code>PartialEq</code>, <code>Debug</code>, <code>StructuralPartialEq</code>
+
+
+### `WaitFor`
+
+**Variants**
+
+| Variant | Description |
+| --- | --- |
+| <code>Duration(Duration)</code> |  |
+| <code>LoadState(<a href="#loadstate">LoadState</a>)</code> |  |
+| <code>Selector(<a href="#selector">Selector</a>)</code> |  |
+| <code>Text(<a href="#textmatch">TextMatch</a>)</code> |  |
+| <code>Url(<a href="#urlmatch">UrlMatch</a>)</code> |  |
+
+**Trait implementations:** <code>Clone</code>, <code>Eq</code>, <code>PartialEq</code>, <code>Debug</code>, <code>StructuralPartialEq</code>, <code>Deserialize&lt;'de&gt;</code>
 
 
 ## Functions

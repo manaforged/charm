@@ -1,4 +1,4 @@
-use crate::dom::RESOLVER;
+use crate::dom::{EDITABLE, ENABLED, Need, RESOLVER};
 use serde_json::{Value, json};
 use std::time::Duration;
 
@@ -28,6 +28,36 @@ pub enum Selector {
     TestId(String),
     Label(TextMatch),
     Ref(String),
+    Within {
+        outer: Box<Selector>,
+        inner: Box<Selector>,
+    },
+    Filtered {
+        base: Box<Selector>,
+        filter: Box<Filter>,
+    },
+    And(Box<Selector>, Box<Selector>),
+    Or(Box<Selector>, Box<Selector>),
+    Nth {
+        base: Box<Selector>,
+        at: Position,
+    },
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Filter {
+    pub has_text: Option<TextMatch>,
+    pub has_not_text: Option<TextMatch>,
+    pub has: Option<Selector>,
+    pub has_not: Option<Selector>,
+    pub visible: Option<bool>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Position {
+    Index(usize),
+    Last,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -60,7 +90,7 @@ impl TextMatch {
         format!("{MATCH_TEXT}({value},{},{raw})", self.query())
     }
 
-    fn query(&self) -> Value {
+    pub(crate) fn query(&self) -> Value {
         match self {
             Self::Exact(text) => json!({ "mode": "exact", "text": text }),
             Self::Contains(text) => json!({ "mode": "contains", "text": text }),
@@ -73,6 +103,15 @@ impl TextMatch {
 
 impl Selector {
     #[must_use]
+    pub fn parse_target(raw: &str) -> Self {
+        let bare = raw.strip_prefix('@').unwrap_or(raw);
+        match crate::snapshot::NodeRef::parse(bare) {
+            Some(_) => Self::Ref(bare.to_owned()),
+            None => Self::parse(raw),
+        }
+    }
+
+    #[must_use]
     pub fn parse(raw: &str) -> Self {
         if let Some(id) = raw.strip_prefix(REF_PREFIX) {
             return Self::Ref(id.to_owned());
@@ -83,9 +122,35 @@ impl Selector {
         }
     }
 
+    fn leaf(&self) -> bool {
+        matches!(self, Self::Css(_) | Self::XPath(_) | Self::Ref(_))
+    }
+
+    pub(crate) fn ref_ids(&self) -> Vec<&str> {
+        match self {
+            Self::Ref(id) => vec![id.as_str()],
+            Self::Within { outer: a, inner: b } | Self::And(a, b) | Self::Or(a, b) => {
+                let mut ids = a.ref_ids();
+                ids.extend(b.ref_ids());
+                ids
+            }
+            Self::Filtered { base, filter } => {
+                let mut ids = base.ref_ids();
+                for nested in [&filter.has, &filter.has_not].into_iter().flatten() {
+                    ids.extend(nested.ref_ids());
+                }
+                ids
+            }
+            Self::Nth { base, .. } => base.ref_ids(),
+            _ => Vec::new(),
+        }
+    }
+
     fn semantic(&self) -> Value {
         match self {
-            Self::Css(_) | Self::XPath(_) | Self::Ref(_) => Value::Null,
+            Self::Css(css) => json!({ "kind": "css", "css": css }),
+            Self::XPath(path) => json!({ "kind": "xpath", "path": path }),
+            Self::Ref(id) => json!({ "kind": "ref", "id": id, "registry": REF_REGISTRY }),
             Self::Role { role, name } => json!({
                 "kind": "role",
                 "role": role,
@@ -94,6 +159,26 @@ impl Selector {
             Self::Text(text) => json!({ "kind": "text", "match": text.query() }),
             Self::TestId(id) => json!({ "kind": "testid", "id": id }),
             Self::Label(text) => json!({ "kind": "label", "match": text.query() }),
+            Self::Within { outer, inner } => {
+                json!({ "kind": "within", "outer": outer.semantic(), "inner": inner.semantic() })
+            }
+            Self::Filtered { base, filter } => json!({
+                "kind": "filter",
+                "base": base.semantic(),
+                "hasText": filter.has_text.as_ref().map(TextMatch::query),
+                "hasNotText": filter.has_not_text.as_ref().map(TextMatch::query),
+                "has": filter.has.as_ref().map(Self::semantic),
+                "hasNot": filter.has_not.as_ref().map(Self::semantic),
+                "visible": filter.visible,
+            }),
+            Self::And(a, b) => json!({ "kind": "and", "a": a.semantic(), "b": b.semantic() }),
+            Self::Or(a, b) => json!({ "kind": "or", "a": a.semantic(), "b": b.semantic() }),
+            Self::Nth { base, at } => match at {
+                Position::Index(index) => {
+                    json!({ "kind": "nth", "base": base.semantic(), "index": index })
+                }
+                Position::Last => json!({ "kind": "nth", "base": base.semantic(), "last": true }),
+            },
         }
     }
 
@@ -121,14 +206,16 @@ impl Selector {
     }
 
     fn with_resolver(body: &str) -> String {
-        format!("(function(){{var {RESOLVER_VAR}=({RESOLVER})({MATCH_TEXT});{body}}})()")
+        format!(
+            "(function(){{var {RESOLVER_VAR}=({RESOLVER})({MATCH_TEXT},{EDITABLE},{ENABLED});{body}}})()"
+        )
     }
 
     pub(crate) fn one_expr(&self, index: Option<usize>) -> String {
-        match self {
-            Self::Css(_) | Self::XPath(_) | Self::Ref(_) => self.element_expr(index),
-            _ => Self::with_resolver(&format!("return {};", self.element_expr(index))),
+        if self.leaf() {
+            return self.element_expr(index);
         }
+        Self::with_resolver(&format!("return {};", self.element_expr(index)))
     }
 
     pub(crate) fn count_expr(&self) -> String {
@@ -146,19 +233,31 @@ impl Selector {
         }
     }
 
-    pub(crate) fn actionable_expr(&self, index: Option<usize>, frame_wait: Duration) -> String {
+    pub(crate) fn actionable_expr(
+        &self,
+        index: Option<usize>,
+        frame_wait: Duration,
+        need: Need,
+    ) -> String {
         Self::with_resolver(&format!(
-            "return {RESOLVER_VAR}.actionable({},{});",
+            "return {RESOLVER_VAR}.actionable({},{},{});",
             self.element_expr(index),
-            frame_wait.as_millis()
+            frame_wait.as_millis(),
+            quote(need.js())
         ))
     }
 
-    pub(crate) fn settled_expr(&self, index: Option<usize>, frame_wait: Duration) -> String {
+    pub(crate) fn settled_expr(
+        &self,
+        index: Option<usize>,
+        frame_wait: Duration,
+        need: Need,
+    ) -> String {
         Self::with_resolver(&format!(
-            "return {RESOLVER_VAR}.actionable({},{}).then(function(v){{return v.ok?JSON.stringify(v):false;}});",
+            "return {RESOLVER_VAR}.actionable({},{},{}).then(function(v){{return v.ok?JSON.stringify(v):false;}});",
             self.element_expr(index),
-            frame_wait.as_millis()
+            frame_wait.as_millis(),
+            quote(need.js())
         ))
     }
 }

@@ -204,3 +204,25 @@ async fn connect_attaches_without_owning_the_browser() {
     );
     drop(chrome.kill());
 }
+
+#[tokio::test]
+#[ignore = "launches the installed Chrome"]
+async fn refs_inside_a_same_origin_frame_act_on_the_right_element() {
+    let mut session = support::launch(Duration::from_secs(5)).await;
+    session
+        .goto("data:text/html,<div style='height:40px'></div><iframe id=f srcdoc=\"<button onclick=&quot;parent.document.title='inner'&quot;>Inner button</button>\"></iframe>")
+        .await
+        .expect("goto");
+    let snapshot = session
+        .snapshot(SnapshotOptions::default())
+        .await
+        .expect("snapshot")
+        .text();
+    let button = reference(&snapshot, "button \"Inner button\"");
+    session
+        .click(Selector::parse(&button))
+        .await
+        .expect("click a ref inside a same-origin frame");
+    assert_eq!(session.title().await.expect("title"), "inner");
+    session.close().await.expect("close");
+}

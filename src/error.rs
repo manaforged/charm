@@ -34,6 +34,8 @@ pub enum Error {
     },
     #[error("frame: {0}")]
     Frame(String),
+    #[error("browser profile in use: {}", path.display())]
+    ProfileInUse { path: PathBuf },
     #[error("ref {0} is stale: take a new snapshot")]
     StaleRef(String),
     #[error("{0}")]

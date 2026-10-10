@@ -1,4 +1,5 @@
 use crate::Error;
+use crate::downloads::Transfers;
 use crate::transport::{Transport, blocked};
 use serde_json::{Value, json};
 use std::collections::{BTreeSet, VecDeque};
@@ -158,7 +159,7 @@ fn exception_thrown(params: &Value) -> ConsoleMessage {
     }
 }
 
-fn bounded<T>(ring: &mut VecDeque<T>, item: T) -> u64 {
+pub(crate) fn bounded<T>(ring: &mut VecDeque<T>, item: T) -> u64 {
     let mut dropped = 0;
     if ring.len() >= MAX_RECORDS {
         drop(ring.pop_front());
@@ -175,6 +176,7 @@ pub(crate) struct Observer {
     console: VecDeque<ConsoleMessage>,
     pub(crate) dropped: u64,
     inflight: BTreeSet<(String, String)>,
+    pub(crate) transfers: Transfers,
     quiet_since: Instant,
 }
 
@@ -187,6 +189,7 @@ impl Observer {
             console: VecDeque::new(),
             dropped: 0,
             inflight: BTreeSet::new(),
+            transfers: Transfers::default(),
             quiet_since: Instant::now(),
         }
     }
@@ -196,10 +199,15 @@ impl Observer {
         self.policy = policy;
     }
 
-    pub(crate) fn observe(&mut self, msg: &Value) -> Option<Value> {
+    pub(crate) fn observe(&mut self, msg: &Value) -> Option<(&'static str, Value)> {
         let params = &msg["params"];
         match msg.get("method").and_then(Value::as_str)? {
-            "Page.javascriptDialogOpening" => return Some(self.dialog(params)),
+            "Page.javascriptDialogOpening" => {
+                return Some(("Page.handleJavaScriptDialog", self.dialog(params)));
+            }
+            "Page.fileChooserOpened" => return self.transfers.file_chooser(params),
+            "Browser.downloadWillBegin" => self.dropped += self.transfers.begin(params),
+            "Browser.downloadProgress" => self.transfers.progress(params),
             "Runtime.consoleAPICalled" => {
                 self.dropped += bounded(&mut self.console, console_called(params));
             }

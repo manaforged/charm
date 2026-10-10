@@ -1,16 +1,11 @@
 use super::Locator;
 use crate::dom::Read;
 use crate::error::Error;
-use crate::human::Point;
-use crate::input::{ClickOptions, Modifiers, MouseButton, Pointer, Press};
+use crate::input::ClickOptions;
 use crate::selector::Selector;
 use crate::session::{Session, World};
 use serde_json::{Value, json};
 use std::path::PathBuf;
-use std::time::Duration;
-use tokio::time::Instant;
-
-const DRAG_STEPS: u32 = 10;
 
 const SELECT: &str = "(e,by,want,commit)=>{if(!e||e.tagName!=='SELECT')return null;const opts=[...e.options];const pick=want.map(w=>opts.find((o,i)=>by==='value'?o.value===w:by==='label'?o.label===w:i===w));if(pick.some(o=>!o))return null;if(!commit)return true;const keep=e.multiple?pick:pick.slice(0,1);opts.forEach(o=>{o.selected=keep.includes(o)});e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));return keep.map(o=>o.value);}";
 
@@ -41,7 +36,7 @@ impl Locator<'_> {
             read.expr(&element),
             Read::Enabled.expr(&element)
         );
-        let timeout = self.timing().wait;
+        let timeout = self.wait();
         drop(self.poll(&ready, timeout).await?);
         Ok(())
     }
@@ -56,7 +51,7 @@ impl Locator<'_> {
         let (kind, want) = by.args();
         let element = self.element_expr();
         let call = |commit: bool| format!("({SELECT})({element},'{kind}',{want},{commit})");
-        let timeout = self.timing().wait;
+        let timeout = self.wait();
         drop(self.poll(&call(false), timeout).await?);
         let picked = self.eval(&call(true)).await?;
         Ok(serde_json::from_value::<Option<Vec<String>>>(picked)?.unwrap_or_default())
@@ -207,109 +202,5 @@ impl Session {
         target: impl Into<Selector>,
     ) -> Result<(), Error> {
         self.locator(source).drag_to(target).await
-    }
-
-    async fn drag(&mut self, from: (f64, f64), to: (f64, f64), html5: bool) -> Result<(), Error> {
-        let press = Press::new(MouseButton::Left, Modifiers::NONE);
-        self.pointer(Pointer::Move, from.0, from.1, press).await?;
-        self.intercept_drags(html5, true).await?;
-        self.pointer(Pointer::Down, from.0, from.1, press).await?;
-        let mut data = None;
-        for (x, y, after) in self.drag_points(from, to) {
-            self.pointer(Pointer::Drag, x, y, press).await?;
-            data = self.drag_step(html5, data, (x, y)).await?;
-            self.idle(after).await?;
-        }
-        if html5 && data.is_none() {
-            data = self.intercepted_drag(self.timing().actionable).await?;
-        }
-        let result = match &data {
-            Some(data) => self.drop_at(to, data).await,
-            None => self.pointer(Pointer::Up, to.0, to.1, press).await,
-        };
-        self.intercept_drags(html5, false).await?;
-        result
-    }
-
-    async fn drag_step(
-        &mut self,
-        html5: bool,
-        data: Option<Value>,
-        at: (f64, f64),
-    ) -> Result<Option<Value>, Error> {
-        if let Some(data) = data {
-            self.drag_event("dragOver", at, &data).await?;
-            return Ok(Some(data));
-        }
-        if !html5 {
-            return Ok(None);
-        }
-        let found = self.intercepted_drag(Duration::ZERO).await?;
-        if let Some(data) = &found {
-            self.drag_event("dragEnter", at, data).await?;
-        }
-        Ok(found)
-    }
-
-    async fn drop_at(&mut self, at: (f64, f64), data: &Value) -> Result<(), Error> {
-        self.drag_event("dragEnter", at, data).await?;
-        self.drag_event("dragOver", at, data).await?;
-        self.drag_event("drop", at, data).await
-    }
-
-    async fn intercept_drags(&mut self, html5: bool, enabled: bool) -> Result<(), Error> {
-        if html5 {
-            let params = json!({ "enabled": enabled });
-            drop(self.send("Input.setInterceptDrags", params).await?);
-        }
-        Ok(())
-    }
-
-    async fn intercepted_drag(&mut self, wait: Duration) -> Result<Option<Value>, Error> {
-        let deadline = Instant::now() + wait;
-        loop {
-            let found = self
-                .take_event(|event| {
-                    event.get("method").and_then(Value::as_str) == Some("Input.dragIntercepted")
-                })
-                .await?;
-            if let Some(event) = found {
-                return Ok(event.pointer("/params/data").cloned());
-            }
-            if Instant::now() >= deadline {
-                return Ok(None);
-            }
-            self.idle(self.timing().poll).await?;
-        }
-    }
-
-    async fn drag_event(&mut self, kind: &str, at: (f64, f64), data: &Value) -> Result<(), Error> {
-        let params = json!({ "type": kind, "x": at.0.round(), "y": at.1.round(), "data": data });
-        drop(self.send("Input.dispatchDragEvent", params).await?);
-        Ok(())
-    }
-
-    fn drag_points(&mut self, from: (f64, f64), to: (f64, f64)) -> Vec<(f64, f64, Duration)> {
-        let start = Point {
-            x: from.0,
-            y: from.1,
-        };
-        let end = Point { x: to.0, y: to.1 };
-        if let Some(steps) = self.human_path(start, end) {
-            return steps
-                .into_iter()
-                .map(|step| (step.point.x, step.point.y, step.after))
-                .collect();
-        }
-        (1..=DRAG_STEPS)
-            .map(|i| {
-                let t = f64::from(i) / f64::from(DRAG_STEPS);
-                (
-                    from.0 + (to.0 - from.0) * t,
-                    from.1 + (to.1 - from.1) * t,
-                    Duration::ZERO,
-                )
-            })
-            .collect()
     }
 }

@@ -13,6 +13,21 @@ pub async fn launch(wait: Duration) -> Session {
     launch_with(wait, None).await
 }
 
+pub fn base(wait: Duration) -> Launch {
+    let timing = Timing {
+        wait,
+        ..Timing::default()
+    };
+    let launch = Launch::installed()
+        .expect("an installed Chrome")
+        .timing(timing);
+    if std::env::var("CHARM_CHROME_NO_SANDBOX").is_ok_and(|value| !value.is_empty()) {
+        launch.arg("--no-sandbox")
+    } else {
+        launch
+    }
+}
+
 pub async fn launch_with(wait: Duration, url: Option<String>) -> Session {
     let timing = Timing {
         wait,
@@ -58,6 +73,11 @@ fn respond(path: &str, port: u16) -> (&'static str, String) {
         "/frame" => ("text/html", FRAME.to_owned()),
         "/api" => ("application/json", "{\"ok\":true}".to_owned()),
         "/data" => ("text/plain", "payload-123".to_owned()),
+        "/file" => (
+            "text/plain\r\ncontent-disposition: attachment; filename=report.txt",
+            "report body".to_owned(),
+        ),
+        "/plain" => ("text/html", "<title>plain</title><p>plain</p>".to_owned()),
         _ => ("text/plain", String::new()),
     }
 }

@@ -108,16 +108,14 @@ pub(crate) fn route_reply(routes: &[Route], params: &Value) -> Option<Reply> {
 
 impl Session {
     pub async fn route(&mut self, url: UrlMatch, action: RouteAction) -> Result<(), Error> {
-        let session = self.session_id().to_string();
         self.transport_mut()
-            .reroute(&session, |routes| routes.push(Route { url, action }))
+            .reroute(None, |routes| routes.push(Route { url, action }))
             .await
     }
 
     pub async fn unroute(&mut self, url: UrlMatch) -> Result<(), Error> {
-        let session = self.session_id().to_string();
         self.transport_mut()
-            .reroute(&session, |routes| routes.retain(|route| route.url != url))
+            .reroute(None, |routes| routes.retain(|route| route.url != url))
             .await
     }
 }

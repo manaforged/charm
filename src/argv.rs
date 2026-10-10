@@ -1,5 +1,6 @@
 use crate::Timing;
 use crate::events::{DialogPolicy, Events};
+use crate::storage::StorageState;
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -24,6 +25,7 @@ pub struct Launch {
     events: Events,
     dialogs: DialogPolicy,
     extra: Vec<String>,
+    storage: Option<StorageState>,
 }
 
 impl Launch {
@@ -46,6 +48,7 @@ impl Launch {
             events: Events::default(),
             dialogs: DialogPolicy::default(),
             extra: Vec::new(),
+            storage: None,
         }
     }
 
@@ -104,6 +107,16 @@ impl Launch {
     pub fn dialogs(mut self, policy: DialogPolicy) -> Self {
         self.dialogs = policy;
         self
+    }
+
+    #[must_use]
+    pub fn storage_state(mut self, state: StorageState) -> Self {
+        self.storage = Some(state);
+        self
+    }
+
+    pub(crate) fn storage(&self) -> Option<&StorageState> {
+        self.storage.as_ref()
     }
 
     pub(crate) fn event_opt_in(&self) -> (Events, DialogPolicy) {
@@ -167,6 +180,7 @@ impl fmt::Debug for Launch {
             .field("events", &self.events)
             .field("dialogs", &self.dialogs)
             .field("extra_args", &self.extra.len())
+            .field("storage_state", &self.storage.is_some())
             .finish()
     }
 }
@@ -176,6 +190,73 @@ pub(crate) async fn clear_stale_port(user_data_dir: &Path) -> std::io::Result<()
         Err(error) if error.kind() != std::io::ErrorKind::NotFound => Err(error),
         _ => Ok(()),
     }
+}
+
+const LOCK: &str = if cfg!(windows) {
+    "lockfile"
+} else {
+    "SingletonLock"
+};
+
+pub(crate) async fn check_profile_lock(user_data_dir: &Path) -> Result<(), crate::Error> {
+    let lock = user_data_dir.join(LOCK);
+    if lock_held(&lock).await? {
+        return Err(crate::Error::ProfileInUse {
+            path: user_data_dir.to_path_buf(),
+        });
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+async fn lock_held(lock: &Path) -> std::io::Result<bool> {
+    match tokio::fs::remove_file(lock).await {
+        Ok(()) => Ok(false),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => Ok(true),
+        Err(error) if error.raw_os_error() == Some(SHARING_VIOLATION) => Ok(true),
+        Err(error) => Err(error),
+    }
+}
+
+#[cfg(windows)]
+const SHARING_VIOLATION: i32 = 32;
+
+#[cfg(not(windows))]
+async fn lock_held(lock: &Path) -> std::io::Result<bool> {
+    let target = match tokio::fs::read_link(lock).await {
+        Ok(target) => target,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(error),
+    };
+    if lock_pid(&target.to_string_lossy()).is_some_and(pid_alive) {
+        return Ok(true);
+    }
+    match tokio::fs::remove_file(lock).await {
+        Err(error) if error.kind() != std::io::ErrorKind::NotFound => Err(error),
+        _ => Ok(false),
+    }
+}
+
+pub(crate) fn lock_pid(target: &str) -> Option<u32> {
+    target
+        .rsplit_once('-')?
+        .1
+        .parse()
+        .ok()
+        .filter(|pid| *pid > 0)
+}
+
+#[cfg(not(windows))]
+fn pid_alive(pid: u32) -> bool {
+    std::process::Command::new("ps")
+        .arg("-p")
+        .arg(pid.to_string())
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_ok_and(|status| status.success())
 }
 
 pub(crate) struct StderrTail {

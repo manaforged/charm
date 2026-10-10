@@ -261,3 +261,49 @@ impl Intercept {
         self.attempted.retain(|seen| seen != id);
     }
 }
+
+impl crate::transport::Transport {
+    pub(crate) async fn apply_fetch(&mut self, scope: Option<&str>) -> Result<(), Error> {
+        if let Some(session) = scope {
+            drop(self.send("Fetch.disable", json!({}), Some(session)).await?);
+            return Ok(());
+        }
+        let sessions: Vec<String> = self.tracked.iter().cloned().collect();
+        for session in sessions {
+            self.fetch_on(&session).await?;
+        }
+        Ok(())
+    }
+
+    pub(crate) async fn track(&mut self, session: &str) -> Result<(), Error> {
+        self.tracked.insert(session.to_owned());
+        if self.browser_wide() {
+            self.fetch_on(session).await?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn untrack(&mut self, session: &str) {
+        self.tracked.remove(session);
+    }
+
+    fn browser_wide(&self) -> bool {
+        self.intercept
+            .as_ref()
+            .is_some_and(|intercept| intercept.active() && intercept.session.is_none())
+    }
+
+    async fn fetch_on(&mut self, session: &str) -> Result<(), Error> {
+        let (method, params) = match self.intercept.as_ref() {
+            Some(intercept) if self.browser_wide() => (
+                "Fetch.enable",
+                intercept.configure("Fetch.enable", json!({})).0,
+            ),
+            _ => ("Fetch.disable", json!({})),
+        };
+        match self.send(method, params, Some(session)).await {
+            Ok(_) | Err(Error::Protocol { .. }) => Ok(()),
+            Err(error) => Err(error),
+        }
+    }
+}

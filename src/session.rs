@@ -46,6 +46,9 @@ impl Session {
     pub async fn launch(launch: Launch) -> Result<Self, Error> {
         let (profile, user_data_dir) = profile_dir(&launch)?;
         fs::create_dir_all(&user_data_dir).await?;
+        if launch.user_data_dir().is_some() {
+            crate::argv::check_profile_lock(&user_data_dir).await?;
+        }
         clear_stale_port(&user_data_dir).await?;
         let mut child = spawn(&launch, &user_data_dir)?;
         let stderr = StderrTail::start(&mut child);
@@ -79,6 +82,9 @@ impl Session {
         self.set_events(events, policy).await?;
         if let Some((user, pass)) = launch.login() {
             self.transport.arm_auth(None, user, pass).await?;
+        }
+        if let Some(state) = launch.storage() {
+            self.apply_storage_state(state).await?;
         }
         if launch.start_url() != BLANK {
             self.goto(launch.start_url()).await?;

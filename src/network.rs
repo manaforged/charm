@@ -344,3 +344,38 @@ impl Session {
 #[cfg(test)]
 #[path = "network_tests.rs"]
 mod tests;
+
+const GLOB_SPECIAL: &str = r"\^$.|+()[]{}";
+
+impl UrlMatch {
+    pub(crate) fn text_match(self) -> crate::selector::TextMatch {
+        use crate::selector::TextMatch;
+        match self {
+            Self::Exact(want) => TextMatch::Exact(want),
+            Self::Contains(part) => TextMatch::Contains(part),
+            Self::Glob(glob) => TextMatch::regex(&glob_regex(&glob), ""),
+        }
+    }
+}
+
+fn glob_regex(glob: &str) -> String {
+    let mut out = String::from("^");
+    let mut chars = glob.chars().peekable();
+    while let Some(current) = chars.next() {
+        match current {
+            '*' if chars.peek() == Some(&'*') => {
+                chars.next();
+                out.push_str(".*");
+            }
+            '*' => out.push_str("[^/]*"),
+            '?' => out.push('.'),
+            special if GLOB_SPECIAL.contains(special) => {
+                out.push('\\');
+                out.push(special);
+            }
+            literal => out.push(literal),
+        }
+    }
+    out.push('$');
+    out
+}
