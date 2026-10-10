@@ -19,6 +19,8 @@ use serde::de::DeserializeOwned;
 use std::ops::Range;
 use std::time::Duration;
 
+const HIDDEN: &str = "document.visibilityState === 'hidden'";
+
 pub struct Locator<'a> {
     session: &'a mut Session,
     selector: Selector,
@@ -186,6 +188,17 @@ impl<'a> Locator<'a> {
     }
 
     async fn settle_within(&mut self, timeout: Duration, need: Need) -> Result<Actionable, Error> {
+        let hidden = self
+            .session
+            .evaluate_in(None, World::Isolated, HIDDEN)
+            .await?;
+        if hidden.as_bool() == Some(true) {
+            drop(
+                self.session
+                    .send("Page.bringToFront", serde_json::json!({}))
+                    .await?,
+            );
+        }
         let context = self.context().await?;
         let frame_wait = self.session.timing().actionable;
         let settled = context.wrap(&self.selector.settled_expr(self.index, frame_wait, need));

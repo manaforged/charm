@@ -78,6 +78,10 @@ fn respond(path: &str, port: u16) -> (&'static str, String) {
             "report body".to_owned(),
         ),
         "/plain" => ("text/html", "<title>plain</title><p>plain</p>".to_owned()),
+        "/form" => (
+            "text/html",
+            "<title>form</title><form action=/plain><input id=q name=q aria-label=Query><button id=go>Go</button></form>".to_owned(),
+        ),
         _ => ("text/plain", String::new()),
     }
 }
@@ -93,7 +97,8 @@ pub async fn serve() -> u16 {
                     return;
                 };
                 let head = String::from_utf8_lossy(&buf[..read]).into_owned();
-                let path = head.split_whitespace().nth(1).unwrap_or("/").to_owned();
+                let target = head.split_whitespace().nth(1).unwrap_or("/");
+                let path = target.split('?').next().unwrap_or("/").to_owned();
                 let (kind, body) = respond(&path, port);
                 let reply = format!(
                     "HTTP/1.1 200 OK\r\ncontent-type: {kind}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",

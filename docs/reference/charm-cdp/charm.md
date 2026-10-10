@@ -798,6 +798,7 @@
 | <code>connect: Duration</code> |  |
 | <code>connect_poll: Duration</code> |  |
 | <code>drain: Duration</code> |  |
+| <code>follow: Duration</code> |  |
 | <code>navigate: Duration</code> |  |
 | <code>network_idle: Duration</code> |  |
 | <code>poll: Duration</code> |  |

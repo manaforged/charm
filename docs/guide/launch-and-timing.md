@@ -63,6 +63,9 @@ Turn the sandbox off only on hosts where it cannot start, and only for pages you
 | `actionable` | 1 s | The limit for `Locator::settle` and `Locator::try_click`, and for the check that an element inside an iframe is the one under the pointer. |
 | `network_idle` | 500 ms | How long no request may be in flight before `LoadState::NetworkIdle` holds. |
 | `close` | 1.5 s | How long `close` waits for the browser to exit before it kills the process. |
+| `follow` | 60 ms | How long `act` waits for a navigation its action starts, such as a form submit, before it reads the outcome. A navigation that starts in time is followed to its new page. |
+
+On macOS and Linux a browser that `Session::launch` started also ends when the program that started it ends, even after `process::exit`, Ctrl-C, or a crash: charm holds a pipe to a small shell guard, and the guard stops Chrome when the pipe closes. On Windows the browser ends when the `Session` is dropped or closed.
 
 ## Errors
 

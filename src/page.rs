@@ -8,6 +8,8 @@ use serde_json::{Value, json};
 use std::time::Instant;
 
 const DOCUMENT_ID: &str = "String(performance.timeOrigin)";
+const ARM_UNLOAD: &str = "(() => { window.__charmUnload = false; addEventListener('beforeunload', () => { window.__charmUnload = true; }, { once: true }); return String(performance.timeOrigin); })()";
+const UNLOADING: &str = "window.__charmUnload === true";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[non_exhaustive]
@@ -86,6 +88,28 @@ impl Session {
             });
         }
         Ok(nav.get("loaderId").and_then(Value::as_str).is_some())
+    }
+
+    pub(crate) async fn arm_unload(&mut self) -> Result<String, Error> {
+        self.evaluate_text(ARM_UNLOAD).await
+    }
+
+    pub(crate) async fn follow(&mut self, before: &str, method: &str) -> Result<(), Error> {
+        let grace = self.timing().follow;
+        let leaving = match self
+            .poll_expression_in(None, World::Isolated, UNLOADING, grace)
+            .await
+        {
+            Ok(_) => true,
+            Err(Error::Timeout(_)) => false,
+            Err(_) => true,
+        };
+        let replaced = leaving || self.document_id().await.map_or(true, |now| now != before);
+        if replaced {
+            self.await_document(before, LoadState::DomContentLoaded, method)
+                .await?;
+        }
+        Ok(())
     }
 
     async fn document_id(&mut self) -> Result<String, Error> {

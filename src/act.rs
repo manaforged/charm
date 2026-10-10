@@ -136,7 +136,9 @@ impl Session {
             .into_iter()
             .map(|page| page.id)
             .collect();
+        let document = self.arm_unload().await?;
         self.perform(action).await?;
+        self.follow(&document, "act").await?;
         let new_pages = self
             .pages()
             .await?

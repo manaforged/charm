@@ -94,7 +94,7 @@ pub struct ClickOptions {
 const SUPPRESS_TEXT: u8 = 1 | 2 | 4;
 
 const NAMED: [(&str, &str, &str, u32, Option<&str>); 12] = [
-    ("Enter", "Enter", "Enter", 13, None),
+    ("Enter", "Enter", "Enter", 13, Some("\r")),
     ("Tab", "Tab", "Tab", 9, None),
     ("Backspace", "Backspace", "Backspace", 8, None),
     ("Delete", "Delete", "Delete", 46, None),

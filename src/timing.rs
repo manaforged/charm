@@ -13,6 +13,7 @@ pub struct Timing {
     pub actionable: Duration,
     pub network_idle: Duration,
     pub close: Duration,
+    pub follow: Duration,
 }
 
 impl Default for Timing {
@@ -29,6 +30,7 @@ impl Default for Timing {
             actionable: Duration::from_millis(1000),
             network_idle: Duration::from_millis(500),
             close: Duration::from_millis(1500),
+            follow: Duration::from_millis(60),
         }
     }
 }

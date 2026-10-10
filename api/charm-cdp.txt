@@ -1208,6 +1208,7 @@ pub charm::Timing::command: core::time::Duration
 pub charm::Timing::connect: core::time::Duration
 pub charm::Timing::connect_poll: core::time::Duration
 pub charm::Timing::drain: core::time::Duration
+pub charm::Timing::follow: core::time::Duration
 pub charm::Timing::navigate: core::time::Duration
 pub charm::Timing::network_idle: core::time::Duration
 pub charm::Timing::poll: core::time::Duration

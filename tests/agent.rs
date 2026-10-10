@@ -260,3 +260,65 @@ async fn clicking_a_ref_that_navigates_reports_the_new_page() {
     );
     session.close().await.expect("close");
 }
+
+#[tokio::test]
+#[ignore = "launches the installed Chrome"]
+async fn act_follows_a_form_submit_by_click_and_by_enter() {
+    let port = support::serve().await;
+    let mut session = support::launch(Duration::from_secs(30)).await;
+    for (step, wire) in [
+        ("click", "{\"action\":\"click\",\"target\":\"#go\"}"),
+        (
+            "enter",
+            "{\"action\":\"press\",\"key\":\"Enter\",\"target\":\"#q\"}",
+        ),
+    ] {
+        session
+            .goto(&format!("http://127.0.0.1:{port}/form"))
+            .await
+            .expect("goto");
+        session.fill("#q", "rust").await.expect("fill");
+        let action: charm::Action = serde_json::from_str(wire).expect("parse");
+        let outcome = session
+            .act(action, charm::ActReport::None)
+            .await
+            .expect(step);
+        assert!(
+            outcome.url_after.contains("/plain?q=rust"),
+            "{step}: {}",
+            outcome.url_after
+        );
+        assert_eq!(outcome.title, "plain", "{step}");
+    }
+    session.close().await.expect("close");
+}
+
+#[tokio::test]
+#[ignore = "launches the installed Chrome"]
+async fn the_opener_tab_still_takes_clicks_after_a_popup() {
+    let port = support::serve().await;
+    let mut session = support::launch(Duration::from_secs(30)).await;
+    session
+        .goto(&format!(
+            "data:text/html,<button id=pop onclick=\"window.open('http://127.0.0.1:{port}/plain')\">Pop</button><button id=after onclick=\"document.title='after'\">After</button>"
+        ))
+        .await
+        .expect("goto");
+    session.click("#pop").await.expect("open the popup");
+    for _ in 0..50 {
+        if session.pages().await.expect("pages").len() > 1 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    assert!(session.pages().await.expect("pages").len() > 1, "no popup");
+    let started = std::time::Instant::now();
+    session.click("#after").await.expect("click in the opener");
+    assert!(
+        started.elapsed() < Duration::from_secs(3),
+        "{:?}",
+        started.elapsed()
+    );
+    assert_eq!(session.title().await.expect("title"), "after");
+    session.close().await.expect("close");
+}
