@@ -1,7 +1,7 @@
 mod support;
 
 use charm::{
-    ActReport, Action, Cookie, Error, Events, Filter, RouteAction, Selector, Session,
+    ActReport, Action, Cookie, Error, Events, Filter, LoadState, RouteAction, Selector, Session,
     SnapshotOptions, StorageState, TextMatch, UrlMatch, expect,
 };
 use std::collections::BTreeMap;
@@ -225,5 +225,31 @@ async fn routes_cover_new_tabs_and_cross_origin_refs_click() {
         .to_have_text("clicked")
         .await
         .expect("clicked");
+    session.close().await.expect("close");
+}
+
+#[tokio::test]
+#[ignore = "launches the installed Chrome"]
+async fn a_fresh_snapshot_includes_a_cross_origin_frame() {
+    let port = support::serve().await;
+    let mut session = support::launch(Duration::from_secs(5)).await;
+    session
+        .goto(&format!("http://127.0.0.1:{port}/"))
+        .await
+        .expect("goto");
+    session
+        .wait_for_load_state(LoadState::Load)
+        .await
+        .expect("load");
+    let snapshot = session
+        .snapshot(SnapshotOptions::default())
+        .await
+        .expect("snapshot")
+        .text();
+    let button = reference(&snapshot, "button \"inner\"");
+    session
+        .click(Selector::Ref(button))
+        .await
+        .expect("click ref in cross-origin frame");
     session.close().await.expect("close");
 }

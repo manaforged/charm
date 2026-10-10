@@ -281,20 +281,61 @@ impl Session {
         )))
     }
 
+    pub(crate) async fn attach_page_frames(&mut self) -> Result<(), Error> {
+        let mut parents: Vec<String> = std::iter::once(self.session_id().to_owned())
+            .chain(self.frame_sessions().values().cloned())
+            .collect();
+        let mut pending: Vec<String> = list_targets(self.transport_mut())
+            .await?
+            .into_iter()
+            .filter(|info| info.kind == TargetKind::Iframe)
+            .map(|info| info.target_id)
+            .filter(|target| !self.frame_sessions().contains_key(target))
+            .collect();
+        loop {
+            let before = pending.len();
+            let mut rest = Vec::new();
+            for target in std::mem::take(&mut pending) {
+                let mut owned = false;
+                for parent in &parents {
+                    if self.owner_backend(parent, &target).await?.is_some() {
+                        owned = true;
+                        break;
+                    }
+                }
+                if owned {
+                    let session = attach_target(self.transport_mut(), &target).await?;
+                    self.frame_sessions().insert(target, session.clone());
+                    parents.push(session);
+                } else {
+                    rest.push(target);
+                }
+            }
+            if rest.len() == before {
+                break;
+            }
+            pending = rest;
+        }
+        Ok(())
+    }
+
+    async fn owner_backend(&mut self, parent: &str, target: &str) -> Result<Option<i64>, Error> {
+        match self
+            .send_on(parent, "DOM.getFrameOwner", json!({ "frameId": target }))
+            .await
+        {
+            Ok(owner) => Ok(owner.get("backendNodeId").and_then(Value::as_i64)),
+            Err(Error::Protocol { .. }) => Ok(None),
+            Err(error) => Err(error),
+        }
+    }
+
     pub(crate) async fn owner_offset(
         &mut self,
         parent: &str,
         target: &str,
     ) -> Result<Option<(f64, f64)>, Error> {
-        let owner = match self
-            .send_on(parent, "DOM.getFrameOwner", json!({ "frameId": target }))
-            .await
-        {
-            Ok(owner) => owner,
-            Err(Error::Protocol { .. }) => return Ok(None),
-            Err(error) => return Err(error),
-        };
-        let Some(backend) = owner.get("backendNodeId").and_then(Value::as_i64) else {
+        let Some(backend) = self.owner_backend(parent, target).await? else {
             return Ok(None);
         };
         let context = self.isolated_context(parent).await?;

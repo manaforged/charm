@@ -136,6 +136,7 @@ impl Session {
     }
 
     async fn remote_frames(&mut self) -> Result<Vec<Tree>, Error> {
+        self.attach_page_frames().await?;
         let sessions: Vec<String> = self.frame_sessions().values().cloned().collect();
         let mut out = Vec::new();
         for session in sessions {
