@@ -29,6 +29,7 @@ enum Owner {
 
 struct Owned {
     child: Child,
+    _job: crate::job::Job,
     _profile: Option<TempDir>,
     kept: Option<PathBuf>,
 }
@@ -37,6 +38,7 @@ pub(crate) use crate::world::World;
 
 struct Spawned {
     child: Child,
+    job: crate::job::Job,
     stderr: StderrTail,
     user_data_dir: PathBuf,
     profile: Option<TempDir>,
@@ -52,9 +54,11 @@ impl Session {
         }
         clear_stale_port(&user_data_dir).await?;
         let mut child = spawn(&launch, &user_data_dir)?;
+        let job = crate::job::contain(&child)?;
         let stderr = StderrTail::start(&mut child);
         let mut session = attach(Spawned {
             child,
+            job,
             stderr,
             user_data_dir,
             profile,
@@ -299,6 +303,7 @@ fn release(child: &mut Child) {
 async fn attach(spawned: Spawned) -> Result<Session, Error> {
     let Spawned {
         mut child,
+        job,
         stderr,
         user_data_dir,
         profile,
@@ -310,6 +315,7 @@ async fn attach(spawned: Spawned) -> Result<Session, Error> {
             tabs,
             owner: Owner::Owned(Box::new(Owned {
                 child,
+                _job: job,
                 kept: profile.is_none().then(|| user_data_dir.clone()),
                 _profile: profile,
             })),

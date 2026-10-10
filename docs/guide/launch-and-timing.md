@@ -65,7 +65,7 @@ Turn the sandbox off only on hosts where it cannot start, and only for pages you
 | `close` | 1.5 s | How long `close` waits for the browser to exit before it kills the process. |
 | `follow` | 60 ms | How long `act` waits for a navigation its action starts, such as a form submit, before it reads the outcome. A navigation that starts in time is followed to its new page. |
 
-On macOS and Linux a browser that `Session::launch` started also ends when the program that started it ends, even after `process::exit`, Ctrl-C, or a crash: charm holds a pipe to a small shell guard, and the guard stops Chrome when the pipe closes. On Windows the browser ends when the `Session` is dropped or closed.
+On macOS and Linux a browser that `Session::launch` started also ends when the program that started it ends, even after `process::exit`, Ctrl-C, or a crash: charm holds a pipe to a small shell guard, and the guard stops Chrome when the pipe closes. On Windows charm starts Chrome in a job object that closes with the program, so the browser and its child processes end with it in the same cases.
 
 ## Errors
 

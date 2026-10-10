@@ -40,6 +40,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-tungstenite",
+ "windows-sys",
 ]
 
 [[package]]
