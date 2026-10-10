@@ -224,6 +224,7 @@ impl Session {
         if let Owner::Owned(owned) = &mut self.owner {
             drop(self.transport.send("Browser.close", json!({}), None).await);
             self.transport.close().await;
+            drop(owned.child.stdin.take());
             drop(tokio::time::timeout(self.timing.close, owned.child.wait()).await);
             drop(owned.child.kill().await);
             drop(owned.child.wait().await);
@@ -245,18 +246,54 @@ fn profile_dir(launch: &Launch) -> Result<(Option<TempDir>, PathBuf), Error> {
     }
 }
 
-fn spawn(launch: &Launch, user_data_dir: &Path) -> Result<Child, Error> {
-    Command::new(launch.exe())
+#[cfg(unix)]
+const GUARD: &str = r#"exe="$1"; shift; exec 3<&0; "$exe" "$@" </dev/null 3<&- & child=$!; (read -r _ <&3; kill "$child" 2>/dev/null) & exec 3<&-; wait "$child""#;
+
+#[cfg(unix)]
+fn command(launch: &Launch, user_data_dir: &Path) -> Command {
+    let mut command = Command::new("/bin/sh");
+    command
+        .arg("-c")
+        .arg(GUARD)
+        .arg("charm")
+        .arg(launch.exe())
+        .args(launch.args(user_data_dir))
+        .stdin(Stdio::piped());
+    command
+}
+
+#[cfg(not(unix))]
+fn command(launch: &Launch, user_data_dir: &Path) -> Command {
+    let mut command = Command::new(launch.exe());
+    command
         .args(launch.args(user_data_dir))
         .stdin(Stdio::null())
+        .kill_on_drop(true);
+    command
+}
+
+fn spawn(launch: &Launch, user_data_dir: &Path) -> Result<Child, Error> {
+    let exe = launch.exe();
+    if exe.components().count() > 1 && !exe.is_file() {
+        return Err(Error::Spawn {
+            path: exe.to_path_buf(),
+            source: std::io::Error::from(std::io::ErrorKind::NotFound),
+        });
+    }
+    command(launch, user_data_dir)
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
-        .kill_on_drop(true)
         .spawn()
         .map_err(|source| Error::Spawn {
             path: launch.exe().to_path_buf(),
             source,
         })
+}
+
+fn release(child: &mut Child) {
+    drop(child.stdin.take());
+    #[cfg(not(unix))]
+    drop(child.start_kill());
 }
 
 async fn attach(spawned: Spawned) -> Result<Session, Error> {
@@ -279,6 +316,8 @@ async fn attach(spawned: Spawned) -> Result<Session, Error> {
             timing,
         }),
         Err(error) => {
+            release(&mut child);
+            drop(tokio::time::timeout(timing.close, child.wait()).await);
             drop(child.kill().await);
             drop(profile);
             Err(error)
@@ -333,7 +372,7 @@ async fn read_ws_url(user_data_dir: &Path) -> Result<String, Error> {
 impl Drop for Session {
     fn drop(&mut self) {
         if let Owner::Owned(owned) = &mut self.owner {
-            drop(owned.child.start_kill());
+            release(&mut owned.child);
         }
     }
 }

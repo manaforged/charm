@@ -207,3 +207,41 @@ async fn kept_cookies_survive_a_killed_browser() {
         "{cookie}"
     );
 }
+
+#[tokio::test]
+#[ignore = "launches the installed Chrome"]
+async fn chrome_ends_when_the_host_process_exits() {
+    if let Ok(dir) = std::env::var("CHARM_EXIT_PROFILE") {
+        let launch = support::base(Duration::from_secs(30)).profile(&dir);
+        let session = Session::launch(launch).await.expect("launch");
+        std::mem::forget(session);
+        std::process::exit(0);
+    }
+    let profile = tempfile::tempdir().expect("profile");
+    let status = std::process::Command::new(std::env::current_exe().expect("exe"))
+        .args([
+            "chrome_ends_when_the_host_process_exits",
+            "--exact",
+            "--ignored",
+        ])
+        .env("CHARM_EXIT_PROFILE", profile.path())
+        .status()
+        .expect("host process");
+    assert!(status.success());
+    let marker = format!("--user-data-dir={}", profile.path().display());
+    let mut left = true;
+    for _ in 0..30 {
+        let ps = std::process::Command::new("ps")
+            .args(["-A", "-o", "args="])
+            .output()
+            .expect("ps");
+        left = String::from_utf8_lossy(&ps.stdout)
+            .lines()
+            .any(|line| line.contains(&marker) && !line.starts_with("/bin/sh"));
+        if !left {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+    assert!(!left, "Chrome outlived its host process");
+}
