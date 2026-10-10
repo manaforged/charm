@@ -48,7 +48,7 @@ impl Session {
         let (profile, user_data_dir) = profile_dir(&launch)?;
         fs::create_dir_all(&user_data_dir).await?;
         if launch.user_data_dir().is_some() {
-            crate::argv::check_profile_lock(&user_data_dir).await?;
+            crate::argv::check_profile_lock(&user_data_dir, launch.timings().close).await?;
         }
         clear_stale_port(&user_data_dir).await?;
         let mut child = spawn(&launch, &user_data_dir)?;
@@ -247,7 +247,7 @@ fn profile_dir(launch: &Launch) -> Result<(Option<TempDir>, PathBuf), Error> {
 }
 
 #[cfg(unix)]
-const GUARD: &str = r#"exe="$1"; shift; exec 3<&0; "$exe" "$@" </dev/null 3<&- & child=$!; (read -r _ <&3; kill "$child" 2>/dev/null) & exec 3<&-; wait "$child""#;
+const GUARD: &str = r#"exe="$1"; shift; exec 3<&0; "$exe" "$@" </dev/null 3<&- & child=$!; (read -r _ <&3; kill -9 "$child" 2>/dev/null) & exec 3<&-; wait "$child""#;
 
 #[cfg(unix)]
 fn command(launch: &Launch, user_data_dir: &Path) -> Command {

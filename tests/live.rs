@@ -245,3 +245,19 @@ async fn chrome_ends_when_the_host_process_exits() {
     }
     assert!(!left, "Chrome outlived its host process");
 }
+
+#[tokio::test]
+#[ignore = "launches the installed Chrome"]
+async fn a_profile_relaunches_right_after_a_dropped_session() {
+    let port = support::serve().await;
+    let url = format!("http://127.0.0.1:{port}/start");
+    let profile = tempfile::tempdir().expect("profile");
+    let open = || support::base(Duration::from_secs(30)).profile(profile.path());
+    let mut first = Session::launch(open()).await.expect("launch");
+    first.goto(&url).await.expect("goto");
+    drop(first);
+    let mut second = Session::launch(open()).await.expect("relaunch at once");
+    second.goto(&url).await.expect("goto again");
+    assert_eq!(second.title().await.expect("title"), "start");
+    second.close().await.expect("close");
+}

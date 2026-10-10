@@ -206,12 +206,21 @@ const LOCK: &str = if cfg!(windows) {
     "SingletonLock"
 };
 
-pub(crate) async fn check_profile_lock(user_data_dir: &Path) -> Result<(), crate::Error> {
+const LOCK_POLL: Duration = Duration::from_millis(50);
+
+pub(crate) async fn check_profile_lock(
+    user_data_dir: &Path,
+    grace: Duration,
+) -> Result<(), crate::Error> {
     let lock = user_data_dir.join(LOCK);
-    if lock_held(&lock).await? {
-        return Err(crate::Error::ProfileInUse {
-            path: user_data_dir.to_path_buf(),
-        });
+    let deadline = tokio::time::Instant::now() + grace;
+    while lock_held(&lock).await? {
+        if tokio::time::Instant::now() >= deadline {
+            return Err(crate::Error::ProfileInUse {
+                path: user_data_dir.to_path_buf(),
+            });
+        }
+        tokio::time::sleep(LOCK_POLL).await;
     }
     Ok(())
 }
