@@ -120,7 +120,7 @@ impl Locator<'_> {
             }
             self.arm_hit().await?;
             self.session.click_at(x, y, options).await?;
-            if self.eval::<bool>("globalThis.__charmHit===true").await? {
+            if self.eval::<bool>("globalThis.__charmHit!==false").await? {
                 return Ok(());
             }
             if tokio::time::Instant::now() >= deadline {

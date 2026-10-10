@@ -226,3 +226,37 @@ async fn refs_inside_a_same_origin_frame_act_on_the_right_element() {
     assert_eq!(session.title().await.expect("title"), "inner");
     session.close().await.expect("close");
 }
+
+#[tokio::test]
+#[ignore = "launches the installed Chrome"]
+async fn clicking_a_ref_that_navigates_reports_the_new_page() {
+    let port = support::serve().await;
+    let mut session = support::launch(Duration::from_secs(5)).await;
+    session
+        .goto(&format!(
+            "data:text/html,<a href='http://127.0.0.1:{port}/start'>Go on</a>"
+        ))
+        .await
+        .expect("goto");
+    let snapshot = session
+        .snapshot(SnapshotOptions::default())
+        .await
+        .expect("snapshot")
+        .text();
+    let link = reference(&snapshot, "link \"Go on\"");
+    let action: charm::Action = serde_json::from_str(&format!(
+        "{{\"action\":\"click\",\"target\":\"{}\"}}",
+        &link[4..]
+    ))
+    .expect("parse");
+    let outcome = session
+        .act(action, charm::ActReport::None)
+        .await
+        .expect("a click that navigates succeeds");
+    assert!(
+        outcome.url_after.ends_with("/start"),
+        "{}",
+        outcome.url_after
+    );
+    session.close().await.expect("close");
+}
