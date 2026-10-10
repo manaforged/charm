@@ -34,6 +34,8 @@ pub enum Error {
     },
     #[error("frame: {0}")]
     Frame(String),
+    #[error("ref {0} is stale: take a new snapshot")]
+    StaleRef(String),
     #[error("{0}")]
     Connect(String),
     #[error("{method}: {message}{}", code.map(|c| format!(" (code {c})")).unwrap_or_default())]

@@ -1,4 +1,5 @@
 use crate::Timing;
+use crate::events::{DialogPolicy, Events};
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -20,6 +21,8 @@ pub struct Launch {
     offscreen: bool,
     proxy: Option<String>,
     timing: Timing,
+    events: Events,
+    dialogs: DialogPolicy,
     extra: Vec<String>,
 }
 
@@ -40,6 +43,8 @@ impl Launch {
             offscreen: false,
             proxy: None,
             timing: Timing::default(),
+            events: Events::default(),
+            dialogs: DialogPolicy::default(),
             extra: Vec::new(),
         }
     }
@@ -87,6 +92,22 @@ impl Launch {
     pub fn timing(mut self, timing: Timing) -> Self {
         self.timing = timing;
         self
+    }
+
+    #[must_use]
+    pub fn events(mut self, events: Events) -> Self {
+        self.events = events;
+        self
+    }
+
+    #[must_use]
+    pub fn dialogs(mut self, policy: DialogPolicy) -> Self {
+        self.dialogs = policy;
+        self
+    }
+
+    pub(crate) fn event_opt_in(&self) -> (Events, DialogPolicy) {
+        (self.events, self.dialogs.clone())
     }
 
     pub(crate) fn timings(&self) -> Timing {
@@ -143,6 +164,8 @@ impl fmt::Debug for Launch {
             .field("offscreen", &self.offscreen)
             .field("proxy", &self.proxy.as_deref().map(proxy_server))
             .field("timing", &self.timing)
+            .field("events", &self.events)
+            .field("dialogs", &self.dialogs)
             .field("extra_args", &self.extra.len())
             .finish()
     }

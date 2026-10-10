@@ -4,6 +4,8 @@ use std::time::Duration;
 
 const XPATH_PREFIX: &str = "xpath=";
 const RESOLVER_VAR: &str = "__c";
+const REF_PREFIX: &str = "ref=";
+pub(crate) const REF_REGISTRY: &str = "__charmRefs";
 
 pub(crate) const MATCH_TEXT: &str = r"(function(actual,q,raw){
   function norm(t){var v=t==null?'':String(t);return raw?v:v.replace(/\s+/g,' ').trim();}
@@ -25,6 +27,7 @@ pub enum Selector {
     Text(TextMatch),
     TestId(String),
     Label(TextMatch),
+    Ref(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -71,6 +74,9 @@ impl TextMatch {
 impl Selector {
     #[must_use]
     pub fn parse(raw: &str) -> Self {
+        if let Some(id) = raw.strip_prefix(REF_PREFIX) {
+            return Self::Ref(id.to_owned());
+        }
         match raw.strip_prefix(XPATH_PREFIX) {
             Some(path) => Self::XPath(path.to_owned()),
             None => Self::Css(raw.to_owned()),
@@ -79,7 +85,7 @@ impl Selector {
 
     fn semantic(&self) -> Value {
         match self {
-            Self::Css(_) | Self::XPath(_) => Value::Null,
+            Self::Css(_) | Self::XPath(_) | Self::Ref(_) => Value::Null,
             Self::Role { role, name } => json!({
                 "kind": "role",
                 "role": role,
@@ -93,6 +99,7 @@ impl Selector {
 
     fn element_expr(&self, index: Option<usize>) -> String {
         match (self, index) {
+            (Self::Ref(id), _) => ref_expr(id),
             (Self::XPath(path), None) => format!(
                 "document.evaluate({},document,null,XPathResult.FIRST_ORDERED_NODE_TYPE,null).singleNodeValue",
                 quote(path)
@@ -119,7 +126,7 @@ impl Selector {
 
     pub(crate) fn one_expr(&self, index: Option<usize>) -> String {
         match self {
-            Self::Css(_) | Self::XPath(_) => self.element_expr(index),
+            Self::Css(_) | Self::XPath(_) | Self::Ref(_) => self.element_expr(index),
             _ => Self::with_resolver(&format!("return {};", self.element_expr(index))),
         }
     }
@@ -131,6 +138,7 @@ impl Selector {
                 quote(path)
             ),
             Self::Css(css) => format!("document.querySelectorAll({}).length", quote(css)),
+            Self::Ref(id) => format!("({}?1:0)", ref_expr(id)),
             _ => Self::with_resolver(&format!(
                 "return {RESOLVER_VAR}.find({}).length;",
                 self.semantic()
@@ -153,6 +161,13 @@ impl Selector {
             frame_wait.as_millis()
         ))
     }
+}
+
+fn ref_expr(id: &str) -> String {
+    format!(
+        "(function(){{var m=globalThis.{REF_REGISTRY};var e=m&&m[{}];return e&&e.isConnected?e:null;}})()",
+        quote(id)
+    )
 }
 
 pub(crate) fn quote(text: &str) -> String {

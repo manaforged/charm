@@ -1,6 +1,7 @@
 use crate::dom::BoundingBox;
 use crate::error::Error;
 use crate::locator::Locator;
+use crate::pages::{TargetInfo, TargetKind, attach_target, list_targets};
 use crate::selector::{Selector, quote};
 use crate::session::{Session, World};
 use serde::Deserialize;
@@ -42,6 +43,14 @@ pub(crate) struct Context {
 }
 
 impl Context {
+    pub(crate) fn for_session(session_id: Option<String>) -> Self {
+        Self {
+            session_id,
+            window: None,
+            offset: (0.0, 0.0),
+        }
+    }
+
     pub(crate) fn session_id(&self) -> Option<&str> {
         self.session_id.as_deref()
     }
@@ -78,23 +87,6 @@ struct FrameMeta {
     src: String,
     origin: String,
     same_origin: bool,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "snake_case")]
-enum TargetKind {
-    Iframe,
-    #[serde(other)]
-    Other,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct TargetInfo {
-    target_id: String,
-    #[serde(rename = "type")]
-    kind: TargetKind,
-    url: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -221,13 +213,7 @@ impl Session {
     }
 
     async fn attach_frame(&mut self, meta: &FrameMeta, iframe: &Selector) -> Result<String, Error> {
-        let listed = self.browser_send("Target.getTargets", json!({})).await?;
-        let infos: Vec<TargetInfo> = serde_json::from_value(
-            listed
-                .get("targetInfos")
-                .cloned()
-                .unwrap_or_else(|| Value::Array(Vec::new())),
-        )?;
+        let infos = list_targets(self.transport_mut()).await?;
         let iframes: Vec<TargetInfo> = infos
             .into_iter()
             .filter(|info| info.kind == TargetKind::Iframe)
@@ -241,21 +227,7 @@ impl Session {
         if let Some(cached) = self.frame_sessions().get(&target.target_id) {
             return Ok(cached.clone());
         }
-        let attached = self
-            .browser_send(
-                "Target.attachToTarget",
-                json!({ "targetId": target.target_id, "flatten": true }),
-            )
-            .await?;
-        let session_id = attached
-            .get("sessionId")
-            .and_then(Value::as_str)
-            .map(str::to_owned)
-            .ok_or_else(|| Error::Protocol {
-                method: "Target.attachToTarget".into(),
-                code: None,
-                message: "missing sessionId".into(),
-            })?;
+        let session_id = attach_target(self.transport_mut(), &target.target_id).await?;
         self.frame_sessions()
             .insert(target.target_id.clone(), session_id.clone());
         Ok(session_id)

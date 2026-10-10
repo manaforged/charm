@@ -29,39 +29,66 @@ impl MouseButton {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Modifier {
-    Alt,
-    Control,
-    Meta,
-    Shift,
-}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
+pub struct Modifiers(u8);
 
-impl Modifier {
-    const ALL: [Self; 4] = [Self::Alt, Self::Control, Self::Meta, Self::Shift];
+impl Modifiers {
+    pub const NONE: Self = Self(0);
+    pub const ALT: Self = Self(1);
+    pub const CONTROL: Self = Self(2);
+    pub const META: Self = Self(4);
+    pub const SHIFT: Self = Self(8);
 
-    fn bit(self) -> u8 {
-        match self {
-            Self::Alt => 1,
-            Self::Control => 2,
-            Self::Meta => 4,
-            Self::Shift => 8,
-        }
+    #[must_use]
+    pub const fn bits(self) -> u8 {
+        self.0
     }
 
-    fn key(self) -> Key {
-        let (name, code, vk) = match self {
-            Self::Alt => ("Alt", "AltLeft", 18),
-            Self::Control => ("Control", "ControlLeft", 17),
-            Self::Meta => ("Meta", "MetaLeft", 91),
-            Self::Shift => ("Shift", "ShiftLeft", 16),
-        };
-        Key::new(name, code, vk, None, false)
+    #[must_use]
+    pub const fn contains(self, other: Self) -> bool {
+        self.0 & other.0 == other.0
+    }
+
+    const fn suppresses_text(self) -> bool {
+        self.0 & SUPPRESS_TEXT != 0
     }
 
     fn parse(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|m| m.key().key == name)
+        MODIFIER_KEYS
+            .iter()
+            .find(|entry| entry.1 == name)
+            .map(|entry| entry.0)
     }
+
+    fn held(self) -> impl DoubleEndedIterator<Item = (Self, Key)> {
+        MODIFIER_KEYS
+            .iter()
+            .filter(move |entry| self.contains(entry.0))
+            .map(|&(flag, name, code, vk)| (flag, Key::new(name, code, vk, None, false)))
+    }
+}
+
+const MODIFIER_KEYS: [(Modifiers, &str, &str, u32); 4] = [
+    (Modifiers::ALT, "Alt", "AltLeft", 18),
+    (Modifiers::CONTROL, "Control", "ControlLeft", 17),
+    (Modifiers::META, "Meta", "MetaLeft", 91),
+    (Modifiers::SHIFT, "Shift", "ShiftLeft", 16),
+];
+
+impl std::ops::BitOr for Modifiers {
+    type Output = Self;
+
+    fn bitor(self, other: Self) -> Self {
+        Self(self.0 | other.0)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct ClickOptions {
+    pub button: MouseButton,
+    pub count: u8,
+    pub modifiers: Modifiers,
+    pub position: Option<(f64, f64)>,
 }
 
 const SUPPRESS_TEXT: u8 = 1 | 2 | 4;
@@ -81,29 +108,15 @@ const NAMED: [(&str, &str, &str, u32, Option<&str>); 12] = [
     ("End", "End", "End", 35, None),
 ];
 
-const SHIFTED: [(char, char); 21] = [
-    ('!', '1'),
-    ('@', '2'),
-    ('#', '3'),
-    ('$', '4'),
-    ('%', '5'),
-    ('^', '6'),
-    ('&', '7'),
-    ('*', '8'),
-    ('(', '9'),
-    (')', '0'),
-    ('_', '-'),
-    ('+', '='),
-    ('{', '['),
-    ('}', ']'),
-    ('|', '\\'),
-    (':', ';'),
-    ('"', '\''),
-    ('<', ','),
-    ('>', '.'),
-    ('?', '/'),
-    ('~', '`'),
-];
+const SHIFTED: &str = "!1@2#3$4%5^6&7*8(9)0_-+={[}]|\\:;\"'<,>.?/~`";
+
+fn unshift(ch: char) -> Option<char> {
+    let glyphs: Vec<char> = SHIFTED.chars().collect();
+    glyphs
+        .chunks(2)
+        .find(|pair| pair.first() == Some(&ch))
+        .and_then(|pair| pair.get(1).copied())
+}
 
 const PUNCT: [(char, &str, u32); 11] = [
     ('-', "Minus", 189),
@@ -140,11 +153,14 @@ impl Key {
     }
 
     fn resolve(name: &str) -> Self {
-        if let Some((_, code, key, vk, text)) = NAMED.iter().find(|entry| entry.0 == name) {
+        if let Some((_, code, key, vk, text)) = NAMED
+            .iter()
+            .find(|entry| entry.0 == name || entry.2 == name)
+        {
             return Self::new(key, code, *vk, *text, false);
         }
-        if let Some(modifier) = Modifier::parse(name) {
-            return modifier.key();
+        if let Some((_, key)) = Modifiers::parse(name).and_then(|m| m.held().next()) {
+            return key;
         }
         let mut chars = name.chars();
         match (chars.next(), chars.next()) {
@@ -158,46 +174,21 @@ impl Key {
     fn glyph(ch: char) -> Option<Self> {
         let text = ch.to_string();
         let upper = ch.to_ascii_uppercase();
-        if ch.is_ascii_lowercase() || ch.is_ascii_uppercase() {
-            let code = format!("Key{upper}");
-            return Some(Self::new(
-                &text,
-                &code,
+        let (code, vk, shift) = if ch.is_ascii_alphabetic() {
+            (
+                format!("Key{upper}"),
                 u32::from(upper),
-                Some(&text),
                 ch.is_ascii_uppercase(),
-            ));
-        }
-        if ch.is_ascii_digit() {
-            return Some(Self::new(
-                &text,
-                &format!("Digit{ch}"),
-                u32::from(ch),
-                Some(&text),
-                false,
-            ));
-        }
-        if let Some((_, base)) = SHIFTED.iter().find(|(glyph, _)| *glyph == ch) {
-            let base_key = Self::punct(*base).or_else(|| {
-                base.is_ascii_digit().then(|| {
-                    Self::new(
-                        &text,
-                        &format!("Digit{base}"),
-                        u32::from(*base),
-                        None,
-                        false,
-                    )
-                })
-            })?;
-            return Some(Self::new(
-                &text,
-                &base_key.code,
-                base_key.vk,
-                Some(&text),
-                true,
-            ));
-        }
-        Self::punct(ch)
+            )
+        } else if ch.is_ascii_digit() {
+            (format!("Digit{ch}"), u32::from(ch), false)
+        } else if let Some(base) = unshift(ch) {
+            let key = Self::glyph(base)?;
+            (key.code, key.vk, true)
+        } else {
+            return Self::punct(ch);
+        };
+        Some(Self::new(&text, &code, vk, Some(&text), shift))
     }
 
     fn punct(ch: char) -> Option<Self> {
@@ -206,6 +197,31 @@ impl Key {
             .iter()
             .find(|(glyph, _, _)| *glyph == ch)
             .map(|(_, code, vk)| Self::new(&text, code, *vk, Some(&text), false))
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Pointer {
+    Move,
+    Drag,
+    Down,
+    Up,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Press {
+    pub(crate) button: MouseButton,
+    pub(crate) count: u8,
+    pub(crate) modifiers: Modifiers,
+}
+
+impl Press {
+    pub(crate) fn new(button: MouseButton, modifiers: Modifiers) -> Self {
+        Self {
+            button,
+            count: 1,
+            modifiers,
+        }
     }
 }
 
@@ -222,24 +238,50 @@ impl Session {
     }
 
     pub async fn mouse_move(&mut self, x: f64, y: f64) -> Result<(), Error> {
-        self.mouse_event(
-            json!({ "type": "mouseMoved", "x": x.round(), "y": y.round(), "buttons": 0 }),
-        )
+        let press = Press::new(MouseButton::Left, Modifiers::NONE);
+        self.pointer(Pointer::Move, x, y, press).await
+    }
+
+    pub(crate) async fn pointer(
+        &mut self,
+        phase: Pointer,
+        x: f64,
+        y: f64,
+        press: Press,
+    ) -> Result<(), Error> {
+        let (kind, name, buttons) = match phase {
+            Pointer::Move => ("mouseMoved", "none", 0),
+            Pointer::Drag => ("mouseMoved", press.button.name(), press.button.bit()),
+            Pointer::Down => ("mousePressed", press.button.name(), press.button.bit()),
+            Pointer::Up => ("mouseReleased", press.button.name(), 0),
+        };
+        self.mouse_event(json!({
+            "type": kind,
+            "x": x.round(),
+            "y": y.round(),
+            "button": name,
+            "buttons": buttons,
+            "clickCount": press.count,
+            "modifiers": press.modifiers.bits(),
+        }))
         .await
     }
 
     pub async fn mouse_click(&mut self, x: f64, y: f64, button: MouseButton) -> Result<(), Error> {
-        self.mouse_move(x, y).await?;
-        for (kind, buttons) in [("mousePressed", button.bit()), ("mouseReleased", 0)] {
-            self.mouse_event(json!({
-                "type": kind,
-                "x": x.round(),
-                "y": y.round(),
-                "button": button.name(),
-                "buttons": buttons,
-                "clickCount": 1,
-            }))
-            .await?;
+        let options = ClickOptions {
+            button,
+            ..ClickOptions::default()
+        };
+        self.click_at(x, y, options).await
+    }
+
+    pub async fn click_at(&mut self, x: f64, y: f64, options: ClickOptions) -> Result<(), Error> {
+        let mut press = Press::new(options.button, options.modifiers);
+        self.pointer(Pointer::Move, x, y, press).await?;
+        for count in 1..=options.count.max(1) {
+            press.count = count;
+            self.pointer(Pointer::Down, x, y, press).await?;
+            self.pointer(Pointer::Up, x, y, press).await?;
         }
         Ok(())
     }
@@ -268,8 +310,13 @@ impl Session {
         self.wheel(0.0, delta_y).await
     }
 
-    async fn key_event(&mut self, phase: KeyPhase, key: &Key, modifiers: u8) -> Result<(), Error> {
-        let typed = key.text.is_some() && modifiers & SUPPRESS_TEXT == 0;
+    async fn key_event(
+        &mut self,
+        phase: KeyPhase,
+        key: &Key,
+        modifiers: Modifiers,
+    ) -> Result<(), Error> {
+        let typed = key.text.is_some() && !modifiers.suppresses_text();
         let kind = match phase {
             KeyPhase::Down if typed => "keyDown",
             KeyPhase::Down => "rawKeyDown",
@@ -277,7 +324,7 @@ impl Session {
         };
         let mut params = json!({
             "type": kind,
-            "modifiers": modifiers,
+            "modifiers": modifiers.bits(),
             "key": key.key,
             "code": key.code,
             "windowsVirtualKeyCode": key.vk,
@@ -291,34 +338,27 @@ impl Session {
         Ok(())
     }
 
-    pub async fn press(&mut self, combo: &str) -> Result<(), Error> {
-        let (mods, name) = match combo.strip_suffix('+') {
-            Some(rest) if rest.is_empty() || rest.ends_with('+') => {
-                (rest.strip_suffix('+').unwrap_or(rest), "+")
-            }
-            _ => combo.rsplit_once('+').unwrap_or(("", combo)),
-        };
-        let held: Vec<Modifier> = mods.split('+').filter_map(Modifier::parse).collect();
-        let mut modifiers = 0;
-        for modifier in &held {
-            modifiers |= modifier.bit();
-            self.key_event(KeyPhase::Down, &modifier.key(), modifiers)
-                .await?;
-        }
-        let key = Key::resolve(name);
-        let shift = if key.shift && held.is_empty() {
-            Modifier::Shift.bit()
+    async fn tap(&mut self, key: &Key, held: Modifiers) -> Result<(), Error> {
+        let modifiers = if key.shift && held == Modifiers::NONE {
+            Modifiers::SHIFT
         } else {
-            0
+            held
         };
-        self.key_event(KeyPhase::Down, &key, modifiers | shift)
-            .await?;
-        self.key_event(KeyPhase::Up, &key, modifiers | shift)
-            .await?;
-        for modifier in held.iter().rev() {
-            modifiers &= !modifier.bit();
-            self.key_event(KeyPhase::Up, &modifier.key(), modifiers)
-                .await?;
+        self.key_event(KeyPhase::Down, key, modifiers).await?;
+        self.key_event(KeyPhase::Up, key, modifiers).await
+    }
+
+    pub async fn press(&mut self, combo: &str) -> Result<(), Error> {
+        let (held, key) = parse_combo(combo);
+        let mut down = Modifiers::NONE;
+        for (flag, modifier) in held.held() {
+            down = down | flag;
+            self.key_event(KeyPhase::Down, &modifier, down).await?;
+        }
+        self.tap(&key, held).await?;
+        for (flag, modifier) in held.held().rev() {
+            down = Modifiers(down.0 & !flag.0);
+            self.key_event(KeyPhase::Up, &modifier, down).await?;
         }
         Ok(())
     }
@@ -326,19 +366,27 @@ impl Session {
     pub(crate) async fn type_chars(&mut self, text: &str) -> Result<(), Error> {
         for ch in text.chars() {
             if ch.is_ascii() && !ch.is_ascii_control() {
-                let key =
-                    Key::glyph(ch).unwrap_or_else(|| Key::new(" ", "Space", 32, Some(" "), false));
-                let shift = if key.shift { Modifier::Shift.bit() } else { 0 };
-                self.key_event(KeyPhase::Down, &key, shift).await?;
-                self.key_event(KeyPhase::Up, &key, shift).await?;
+                self.tap(&Key::resolve(&ch.to_string()), Modifiers::NONE)
+                    .await?;
             } else {
-                let piece = ch.to_string();
-                drop(
-                    self.send("Input.insertText", json!({ "text": piece }))
-                        .await?,
-                );
+                let params = json!({ "text": ch.to_string() });
+                drop(self.send("Input.insertText", params).await?);
             }
         }
         Ok(())
     }
+}
+
+fn parse_combo(combo: &str) -> (Modifiers, Key) {
+    let (mods, name) = match combo.strip_suffix('+') {
+        Some(rest) if rest.is_empty() || rest.ends_with('+') => {
+            (rest.strip_suffix('+').unwrap_or(rest), "+")
+        }
+        _ => combo.rsplit_once('+').unwrap_or(("", combo)),
+    };
+    let held = mods
+        .split('+')
+        .filter_map(Modifiers::parse)
+        .fold(Modifiers::NONE, |acc, m| acc | m);
+    (held, Key::resolve(name))
 }

@@ -198,32 +198,38 @@ impl Intercept {
         {
             return Ok(Verdict::Pass);
         }
-        let params = &msg["params"];
-        if msg.get("method").and_then(Value::as_str) == Some("Fetch.requestPaused") {
-            if params.get("responseStatusCode").is_some()
-                || params.get("responseErrorReason").is_some()
-            {
-                if let Some(id) = params.get("requestId").and_then(Value::as_str) {
-                    self.forget(id);
-                }
-                return Ok(Verdict::Pass);
-            }
-            if configuring {
-                return Ok(Verdict::Hold);
-            }
-            if self.patterns.iter().any(|pattern| pattern.matches(params)) {
-                return Ok(Verdict::Pass);
-            }
-            if let Some(reply) = route_reply(&self.routes, params) {
-                return Ok(Verdict::Reply(reply));
-            }
-            if self.login.is_none() {
-                return Ok(params
-                    .get("requestId")
-                    .and_then(Value::as_str)
-                    .map_or(Verdict::Pass, |id| Verdict::Reply(continue_reply(id))));
-            }
+        if msg.get("method").and_then(Value::as_str) == Some("Fetch.requestPaused")
+            && let Some(verdict) = self.paused(&msg["params"], configuring)
+        {
+            return Ok(verdict);
         }
+        self.authenticate(msg)
+    }
+
+    fn paused(&mut self, params: &Value, configuring: bool) -> Option<Verdict> {
+        let id = params.get("requestId").and_then(Value::as_str);
+        if params.get("responseStatusCode").is_some() || params.get("responseErrorReason").is_some()
+        {
+            if let Some(id) = id {
+                self.forget(id);
+            }
+            return Some(Verdict::Pass);
+        }
+        if configuring {
+            return Some(Verdict::Hold);
+        }
+        if self.patterns.iter().any(|pattern| pattern.matches(params)) {
+            return Some(Verdict::Pass);
+        }
+        if let Some(reply) = route_reply(&self.routes, params) {
+            return Some(Verdict::Reply(reply));
+        }
+        self.login
+            .is_none()
+            .then(|| id.map_or(Verdict::Pass, |id| Verdict::Reply(continue_reply(id))))
+    }
+
+    fn authenticate(&mut self, msg: &Value) -> Result<Verdict, Error> {
         let Some((user, pass)) = self.login.as_ref() else {
             return Ok(Verdict::Pass);
         };
@@ -231,8 +237,8 @@ impl Intercept {
             return Ok(Verdict::Pass);
         };
         if let ReplyKind::Auth { proxy: true } = reply.kind {
-            let id = params
-                .get("requestId")
+            let id = msg
+                .pointer("/params/requestId")
                 .and_then(Value::as_str)
                 .ok_or_else(|| Error::Protocol {
                     method: "Fetch.authRequired".into(),

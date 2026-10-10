@@ -202,6 +202,84 @@ impl core::fmt::Debug for charm::Blocker
 impl core::marker::Copy for charm::Blocker
 impl core::marker::StructuralPartialEq for charm::Blocker
 impl<'de> serde_core::de::Deserialize<'de> for charm::Blocker
+#[non_exhaustive] pub enum charm::Checked
+pub charm::Checked::False
+pub charm::Checked::Mixed
+pub charm::Checked::True
+impl core::clone::Clone for charm::Checked
+impl core::cmp::Eq for charm::Checked
+impl core::cmp::PartialEq for charm::Checked
+impl core::fmt::Debug for charm::Checked
+impl core::marker::Copy for charm::Checked
+impl core::marker::StructuralPartialEq for charm::Checked
+#[non_exhaustive] pub enum charm::ColorScheme
+pub charm::ColorScheme::Dark
+pub charm::ColorScheme::Light
+pub charm::ColorScheme::NoPreference
+impl core::clone::Clone for charm::ColorScheme
+impl core::cmp::Eq for charm::ColorScheme
+impl core::cmp::PartialEq for charm::ColorScheme
+impl core::default::Default for charm::ColorScheme
+impl core::fmt::Debug for charm::ColorScheme
+impl core::marker::Copy for charm::ColorScheme
+impl core::marker::StructuralPartialEq for charm::ColorScheme
+pub enum charm::ConsoleLevel
+pub charm::ConsoleLevel::Debug
+pub charm::ConsoleLevel::Error
+pub charm::ConsoleLevel::Exception
+pub charm::ConsoleLevel::Info
+pub charm::ConsoleLevel::Log
+pub charm::ConsoleLevel::Warning
+impl core::clone::Clone for charm::ConsoleLevel
+impl core::cmp::Eq for charm::ConsoleLevel
+impl core::cmp::PartialEq for charm::ConsoleLevel
+impl core::fmt::Debug for charm::ConsoleLevel
+impl core::marker::Copy for charm::ConsoleLevel
+impl core::marker::StructuralPartialEq for charm::ConsoleLevel
+#[non_exhaustive] pub enum charm::Device
+pub charm::Device::Desktop1080p
+pub charm::Device::Ipad
+pub charm::Device::Iphone15
+pub charm::Device::Pixel8
+impl charm::Device
+pub fn charm::Device::named(name: &str) -> core::option::Option<Self>
+pub fn charm::Device::spec(self) -> charm::DeviceSpec
+impl core::clone::Clone for charm::Device
+impl core::cmp::Eq for charm::Device
+impl core::cmp::PartialEq for charm::Device
+impl core::fmt::Debug for charm::Device
+impl core::hash::Hash for charm::Device
+impl core::marker::Copy for charm::Device
+impl core::marker::StructuralPartialEq for charm::Device
+pub enum charm::DialogKind
+pub charm::DialogKind::Alert
+pub charm::DialogKind::BeforeUnload
+pub charm::DialogKind::Confirm
+pub charm::DialogKind::Prompt
+impl core::clone::Clone for charm::DialogKind
+impl core::cmp::Eq for charm::DialogKind
+impl core::cmp::PartialEq for charm::DialogKind
+impl core::fmt::Debug for charm::DialogKind
+impl core::marker::Copy for charm::DialogKind
+impl core::marker::StructuralPartialEq for charm::DialogKind
+pub enum charm::DialogPolicy
+pub charm::DialogPolicy::Accept
+pub charm::DialogPolicy::AcceptWith(alloc::string::String)
+pub charm::DialogPolicy::Dismiss
+impl core::clone::Clone for charm::DialogPolicy
+impl core::cmp::Eq for charm::DialogPolicy
+impl core::cmp::PartialEq for charm::DialogPolicy
+impl core::default::Default for charm::DialogPolicy
+impl core::fmt::Debug for charm::DialogPolicy
+impl core::marker::StructuralPartialEq for charm::DialogPolicy
+pub enum charm::Endpoint
+pub charm::Endpoint::Port(u16)
+pub charm::Endpoint::WebSocket(alloc::string::String)
+impl core::clone::Clone for charm::Endpoint
+impl core::cmp::Eq for charm::Endpoint
+impl core::cmp::PartialEq for charm::Endpoint
+impl core::fmt::Debug for charm::Endpoint
+impl core::marker::StructuralPartialEq for charm::Endpoint
 #[non_exhaustive] pub enum charm::Error
 pub charm::Error::Assertion
 pub charm::Error::Assertion::expected: alloc::string::String
@@ -231,6 +309,7 @@ pub charm::Error::Script::message: alloc::string::String
 pub charm::Error::Spawn
 pub charm::Error::Spawn::path: std::path::PathBuf
 pub charm::Error::Spawn::source: core::io::error::Error
+pub charm::Error::StaleRef(alloc::string::String)
 pub charm::Error::Timeout(alloc::string::String)
 pub charm::Error::Ws(alloc::boxed::Box<tungstenite::error::Error>)
 impl core::convert::From<core::io::error::Error> for charm::Error
@@ -275,6 +354,7 @@ impl core::marker::StructuralPartialEq for charm::ImageFormat
 #[non_exhaustive] pub enum charm::LoadState
 pub charm::LoadState::DomContentLoaded
 pub charm::LoadState::Load
+pub charm::LoadState::NetworkIdle
 impl core::clone::Clone for charm::LoadState
 impl core::cmp::Eq for charm::LoadState
 impl core::cmp::PartialEq for charm::LoadState
@@ -293,6 +373,22 @@ impl core::default::Default for charm::MouseButton
 impl core::fmt::Debug for charm::MouseButton
 impl core::marker::Copy for charm::MouseButton
 impl core::marker::StructuralPartialEq for charm::MouseButton
+#[non_exhaustive] pub enum charm::PaperSize
+pub charm::PaperSize::A3
+pub charm::PaperSize::A4
+pub charm::PaperSize::A5
+pub charm::PaperSize::Legal
+pub charm::PaperSize::Letter
+pub charm::PaperSize::Tabloid
+impl charm::PaperSize
+pub fn charm::PaperSize::inches(self) -> (f64, f64)
+impl core::clone::Clone for charm::PaperSize
+impl core::cmp::Eq for charm::PaperSize
+impl core::cmp::PartialEq for charm::PaperSize
+impl core::default::Default for charm::PaperSize
+impl core::fmt::Debug for charm::PaperSize
+impl core::marker::Copy for charm::PaperSize
+impl core::marker::StructuralPartialEq for charm::PaperSize
 #[non_exhaustive] pub enum charm::RouteAction
 pub charm::RouteAction::Abort(charm::ErrorReason)
 pub charm::RouteAction::Continue
@@ -339,9 +435,19 @@ impl core::cmp::Eq for charm::ScriptTag
 impl core::cmp::PartialEq for charm::ScriptTag
 impl core::fmt::Debug for charm::ScriptTag
 impl core::marker::StructuralPartialEq for charm::ScriptTag
+pub enum charm::SelectBy
+pub charm::SelectBy::Index(alloc::vec::Vec<usize>)
+pub charm::SelectBy::Label(alloc::vec::Vec<alloc::string::String>)
+pub charm::SelectBy::Value(alloc::vec::Vec<alloc::string::String>)
+impl core::clone::Clone for charm::SelectBy
+impl core::cmp::Eq for charm::SelectBy
+impl core::cmp::PartialEq for charm::SelectBy
+impl core::fmt::Debug for charm::SelectBy
+impl core::marker::StructuralPartialEq for charm::SelectBy
 #[non_exhaustive] pub enum charm::Selector
 pub charm::Selector::Css(alloc::string::String)
 pub charm::Selector::Label(charm::TextMatch)
+pub charm::Selector::Ref(alloc::string::String)
 pub charm::Selector::Role
 pub charm::Selector::Role::name: core::option::Option<charm::TextMatch>
 pub charm::Selector::Role::role: alloc::string::String
@@ -358,6 +464,15 @@ impl core::convert::From<&str> for charm::Selector
 impl core::convert::From<alloc::string::String> for charm::Selector
 impl core::fmt::Debug for charm::Selector
 impl core::marker::StructuralPartialEq for charm::Selector
+#[non_exhaustive] pub enum charm::TextFormat
+pub charm::TextFormat::Markdown
+pub charm::TextFormat::Text
+impl core::clone::Clone for charm::TextFormat
+impl core::cmp::Eq for charm::TextFormat
+impl core::cmp::PartialEq for charm::TextFormat
+impl core::fmt::Debug for charm::TextFormat
+impl core::marker::Copy for charm::TextFormat
+impl core::marker::StructuralPartialEq for charm::TextFormat
 #[non_exhaustive] pub enum charm::TextMatch
 pub charm::TextMatch::Contains(alloc::string::String)
 pub charm::TextMatch::Exact(alloc::string::String)
@@ -374,6 +489,20 @@ impl core::convert::From<&str> for charm::TextMatch
 impl core::convert::From<alloc::string::String> for charm::TextMatch
 impl core::fmt::Debug for charm::TextMatch
 impl core::marker::StructuralPartialEq for charm::TextMatch
+#[non_exhaustive] pub enum charm::Throttle
+pub charm::Throttle::Custom(charm::Conditions)
+pub charm::Throttle::Fast3g
+pub charm::Throttle::None
+pub charm::Throttle::Slow3g
+pub charm::Throttle::Slow4g
+impl charm::Throttle
+pub fn charm::Throttle::conditions(self) -> charm::Conditions
+impl core::clone::Clone for charm::Throttle
+impl core::cmp::PartialEq for charm::Throttle
+impl core::default::Default for charm::Throttle
+impl core::fmt::Debug for charm::Throttle
+impl core::marker::Copy for charm::Throttle
+impl core::marker::StructuralPartialEq for charm::Throttle
 #[non_exhaustive] pub enum charm::UrlMatch
 pub charm::UrlMatch::Contains(alloc::string::String)
 pub charm::UrlMatch::Exact(alloc::string::String)
@@ -408,6 +537,17 @@ impl core::fmt::Debug for charm::BoundingBox
 impl core::marker::Copy for charm::BoundingBox
 impl core::marker::StructuralPartialEq for charm::BoundingBox
 impl<'de> serde_core::de::Deserialize<'de> for charm::BoundingBox
+pub struct charm::ClickOptions
+pub charm::ClickOptions::button: charm::MouseButton
+pub charm::ClickOptions::count: u8
+pub charm::ClickOptions::modifiers: charm::Modifiers
+pub charm::ClickOptions::position: core::option::Option<(f64, f64)>
+impl core::clone::Clone for charm::ClickOptions
+impl core::cmp::PartialEq for charm::ClickOptions
+impl core::default::Default for charm::ClickOptions
+impl core::fmt::Debug for charm::ClickOptions
+impl core::marker::Copy for charm::ClickOptions
+impl core::marker::StructuralPartialEq for charm::ClickOptions
 #[non_exhaustive] pub struct charm::ClickResult
 pub charm::ClickResult::clicked: bool
 pub charm::ClickResult::covered_by: core::option::Option<alloc::string::String>
@@ -429,6 +569,25 @@ impl core::default::Default for charm::Clip
 impl core::fmt::Debug for charm::Clip
 impl core::marker::Copy for charm::Clip
 impl core::marker::StructuralPartialEq for charm::Clip
+pub struct charm::Conditions
+pub charm::Conditions::download_bytes_per_sec: f64
+pub charm::Conditions::latency_ms: f64
+pub charm::Conditions::upload_bytes_per_sec: f64
+impl core::clone::Clone for charm::Conditions
+impl core::cmp::PartialEq for charm::Conditions
+impl core::fmt::Debug for charm::Conditions
+impl core::marker::Copy for charm::Conditions
+impl core::marker::StructuralPartialEq for charm::Conditions
+pub struct charm::ConsoleMessage
+pub charm::ConsoleMessage::level: charm::ConsoleLevel
+pub charm::ConsoleMessage::line: u64
+pub charm::ConsoleMessage::text: alloc::string::String
+pub charm::ConsoleMessage::url: alloc::string::String
+impl core::clone::Clone for charm::ConsoleMessage
+impl core::cmp::Eq for charm::ConsoleMessage
+impl core::cmp::PartialEq for charm::ConsoleMessage
+impl core::fmt::Debug for charm::ConsoleMessage
+impl core::marker::StructuralPartialEq for charm::ConsoleMessage
 pub struct charm::Cookie
 pub charm::Cookie::domain: core::option::Option<alloc::string::String>
 pub charm::Cookie::expires: core::option::Option<f64>
@@ -446,6 +605,38 @@ impl core::fmt::Debug for charm::Cookie
 impl core::marker::StructuralPartialEq for charm::Cookie
 impl serde_core::ser::Serialize for charm::Cookie
 impl<'de> serde_core::de::Deserialize<'de> for charm::Cookie
+pub struct charm::DeviceSpec
+pub charm::DeviceSpec::name: &'static str
+pub charm::DeviceSpec::touch: bool
+pub charm::DeviceSpec::user_agent: &'static str
+pub charm::DeviceSpec::viewport: charm::Viewport
+impl core::clone::Clone for charm::DeviceSpec
+impl core::cmp::PartialEq for charm::DeviceSpec
+impl core::fmt::Debug for charm::DeviceSpec
+impl core::marker::Copy for charm::DeviceSpec
+impl core::marker::StructuralPartialEq for charm::DeviceSpec
+pub struct charm::Dialog
+pub charm::Dialog::default_prompt: alloc::string::String
+pub charm::Dialog::kind: charm::DialogKind
+pub charm::Dialog::message: alloc::string::String
+pub charm::Dialog::url: alloc::string::String
+impl core::clone::Clone for charm::Dialog
+impl core::cmp::Eq for charm::Dialog
+impl core::cmp::PartialEq for charm::Dialog
+impl core::fmt::Debug for charm::Dialog
+impl core::marker::StructuralPartialEq for charm::Dialog
+pub struct charm::Events
+pub charm::Events::page: bool
+pub charm::Events::runtime: bool
+impl charm::Events
+pub fn charm::Events::all() -> Self
+impl core::clone::Clone for charm::Events
+impl core::cmp::Eq for charm::Events
+impl core::cmp::PartialEq for charm::Events
+impl core::default::Default for charm::Events
+impl core::fmt::Debug for charm::Events
+impl core::marker::Copy for charm::Events
+impl core::marker::StructuralPartialEq for charm::Events
 #[non_exhaustive] pub struct charm::FrameInfo
 pub charm::FrameInfo::id: alloc::string::String
 pub charm::FrameInfo::name: core::option::Option<alloc::string::String>
@@ -460,10 +651,21 @@ pub struct charm::FrameLocator<'a>
 impl<'a> charm::FrameLocator<'a>
 pub fn charm::FrameLocator<'a>::frame_locator(self, selector: impl core::convert::Into<charm::Selector>) -> Self
 pub fn charm::FrameLocator<'a>::locator(self, inner: impl core::convert::Into<charm::Selector>) -> charm::Locator<'a>
+pub struct charm::Geolocation
+pub charm::Geolocation::accuracy: f64
+pub charm::Geolocation::latitude: f64
+pub charm::Geolocation::longitude: f64
+impl core::clone::Clone for charm::Geolocation
+impl core::cmp::PartialEq for charm::Geolocation
+impl core::fmt::Debug for charm::Geolocation
+impl core::marker::Copy for charm::Geolocation
+impl core::marker::StructuralPartialEq for charm::Geolocation
 pub struct charm::Launch
 impl charm::Launch
 pub fn charm::Launch::arg(self, arg: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn charm::Launch::args(&self, user_data_dir: &std::path::Path) -> alloc::vec::Vec<alloc::string::String>
+pub fn charm::Launch::dialogs(self, policy: charm::DialogPolicy) -> Self
+pub fn charm::Launch::events(self, events: charm::Events) -> Self
 pub fn charm::Launch::headed(self) -> Self
 pub fn charm::Launch::installed() -> core::result::Result<Self, charm::Error>
 pub fn charm::Launch::new(exe: impl core::convert::Into<std::path::PathBuf>) -> Self
@@ -486,6 +688,19 @@ pub async fn charm::Locator<'_>::is_enabled(&mut self) -> core::result::Result<b
 pub async fn charm::Locator<'_>::is_focused(&mut self) -> core::result::Result<bool, charm::Error>
 pub async fn charm::Locator<'_>::is_visible(&mut self) -> core::result::Result<bool, charm::Error>
 pub async fn charm::Locator<'_>::text_content(&mut self) -> core::result::Result<core::option::Option<alloc::string::String>, charm::Error>
+pub async fn charm::Locator<'_>::blur(&mut self) -> core::result::Result<(), charm::Error>
+pub async fn charm::Locator<'_>::check(&mut self) -> core::result::Result<(), charm::Error>
+pub async fn charm::Locator<'_>::clear(&mut self) -> core::result::Result<(), charm::Error>
+pub async fn charm::Locator<'_>::click_with(&mut self, options: charm::ClickOptions) -> core::result::Result<(), charm::Error>
+pub async fn charm::Locator<'_>::dblclick(&mut self) -> core::result::Result<(), charm::Error>
+pub async fn charm::Locator<'_>::drag_to(&mut self, target: impl core::convert::Into<charm::Selector>) -> core::result::Result<(), charm::Error>
+pub async fn charm::Locator<'_>::drag_to_point(&mut self, x: f64, y: f64) -> core::result::Result<(), charm::Error>
+pub async fn charm::Locator<'_>::focus(&mut self) -> core::result::Result<(), charm::Error>
+pub async fn charm::Locator<'_>::press(&mut self, key: &str) -> core::result::Result<(), charm::Error>
+pub async fn charm::Locator<'_>::select_option(&mut self, by: charm::SelectBy) -> core::result::Result<alloc::vec::Vec<alloc::string::String>, charm::Error>
+pub async fn charm::Locator<'_>::set_checked(&mut self, checked: bool) -> core::result::Result<(), charm::Error>
+pub async fn charm::Locator<'_>::set_input_files(&mut self, files: alloc::vec::Vec<std::path::PathBuf>) -> core::result::Result<(), charm::Error>
+pub async fn charm::Locator<'_>::uncheck(&mut self) -> core::result::Result<(), charm::Error>
 impl<'a> charm::Locator<'a>
 pub async fn charm::Locator<'a>::all(&mut self) -> core::result::Result<core::ops::range::Range<usize>, charm::Error>
 pub async fn charm::Locator<'a>::click(&mut self) -> core::result::Result<(), charm::Error>
@@ -514,6 +729,49 @@ pub async fn charm::LocatorExpect<'_, '_>::to_have_text(self, expected: impl cor
 pub async fn charm::LocatorExpect<'_, '_>::to_have_value(self, expected: impl core::convert::Into<charm::TextMatch>) -> core::result::Result<(), charm::Error>
 impl core::ops::bit::Not for charm::LocatorExpect<'_, '_>
 pub type charm::LocatorExpect<'_, '_>::Output = charm::LocatorExpect<'_, '_>
+pub struct charm::Margins
+pub charm::Margins::bottom: f64
+pub charm::Margins::left: f64
+pub charm::Margins::right: f64
+pub charm::Margins::top: f64
+impl core::clone::Clone for charm::Margins
+impl core::cmp::PartialEq for charm::Margins
+impl core::default::Default for charm::Margins
+impl core::fmt::Debug for charm::Margins
+impl core::marker::Copy for charm::Margins
+impl core::marker::StructuralPartialEq for charm::Margins
+pub struct charm::Modifiers(_)
+impl charm::Modifiers
+pub const charm::Modifiers::ALT: Self
+pub const charm::Modifiers::CONTROL: Self
+pub const charm::Modifiers::META: Self
+pub const charm::Modifiers::NONE: Self
+pub const charm::Modifiers::SHIFT: Self
+pub const fn charm::Modifiers::bits(self) -> u8
+pub const fn charm::Modifiers::contains(self, other: Self) -> bool
+impl core::clone::Clone for charm::Modifiers
+impl core::cmp::Eq for charm::Modifiers
+impl core::cmp::PartialEq for charm::Modifiers
+impl core::default::Default for charm::Modifiers
+impl core::fmt::Debug for charm::Modifiers
+impl core::hash::Hash for charm::Modifiers
+impl core::marker::Copy for charm::Modifiers
+impl core::marker::StructuralPartialEq for charm::Modifiers
+impl core::ops::bit::BitOr for charm::Modifiers
+pub type charm::Modifiers::Output = charm::Modifiers
+pub struct charm::NodeRef(_)
+impl charm::NodeRef
+pub fn charm::NodeRef::parse(raw: &str) -> core::option::Option<Self>
+impl core::clone::Clone for charm::NodeRef
+impl core::cmp::Eq for charm::NodeRef
+impl core::cmp::Ord for charm::NodeRef
+impl core::cmp::PartialEq for charm::NodeRef
+impl core::cmp::PartialOrd for charm::NodeRef
+impl core::fmt::Debug for charm::NodeRef
+impl core::fmt::Display for charm::NodeRef
+impl core::hash::Hash for charm::NodeRef
+impl core::marker::Copy for charm::NodeRef
+impl core::marker::StructuralPartialEq for charm::NodeRef
 #[non_exhaustive] pub struct charm::ObservedRequest
 pub charm::ObservedRequest::headers: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
 pub charm::ObservedRequest::method: alloc::string::String
@@ -542,6 +800,43 @@ pub async fn charm::PageExpect<'_>::to_have_title(self, expected: impl core::con
 pub async fn charm::PageExpect<'_>::to_have_url(self, expected: impl core::convert::Into<charm::TextMatch>) -> core::result::Result<(), charm::Error>
 impl core::ops::bit::Not for charm::PageExpect<'_>
 pub type charm::PageExpect<'_>::Output = charm::PageExpect<'_>
+pub struct charm::PageId(_)
+impl charm::PageId
+pub fn charm::PageId::as_str(&self) -> &str
+impl core::clone::Clone for charm::PageId
+impl core::cmp::Eq for charm::PageId
+impl core::cmp::Ord for charm::PageId
+impl core::cmp::PartialEq for charm::PageId
+impl core::cmp::PartialOrd for charm::PageId
+impl core::fmt::Debug for charm::PageId
+impl core::fmt::Display for charm::PageId
+impl core::hash::Hash for charm::PageId
+impl core::marker::StructuralPartialEq for charm::PageId
+impl serde_core::ser::Serialize for charm::PageId
+impl<'de> serde_core::de::Deserialize<'de> for charm::PageId
+#[non_exhaustive] pub struct charm::PageInfo
+pub charm::PageInfo::active: bool
+pub charm::PageInfo::id: charm::PageId
+pub charm::PageInfo::title: alloc::string::String
+pub charm::PageInfo::url: alloc::string::String
+impl core::clone::Clone for charm::PageInfo
+impl core::cmp::Eq for charm::PageInfo
+impl core::cmp::PartialEq for charm::PageInfo
+impl core::fmt::Debug for charm::PageInfo
+impl core::marker::StructuralPartialEq for charm::PageInfo
+impl serde_core::ser::Serialize for charm::PageInfo
+pub struct charm::PdfOptions
+pub charm::PdfOptions::landscape: bool
+pub charm::PdfOptions::margins: core::option::Option<charm::Margins>
+pub charm::PdfOptions::page_ranges: core::option::Option<alloc::string::String>
+pub charm::PdfOptions::paper: charm::PaperSize
+pub charm::PdfOptions::print_background: bool
+pub charm::PdfOptions::scale: core::option::Option<f64>
+impl core::clone::Clone for charm::PdfOptions
+impl core::cmp::PartialEq for charm::PdfOptions
+impl core::default::Default for charm::PdfOptions
+impl core::fmt::Debug for charm::PdfOptions
+impl core::marker::StructuralPartialEq for charm::PdfOptions
 pub struct charm::ScreenshotOptions
 pub charm::ScreenshotOptions::clip: core::option::Option<charm::Clip>
 pub charm::ScreenshotOptions::format: charm::ImageFormat
@@ -555,6 +850,12 @@ impl core::marker::Copy for charm::ScreenshotOptions
 impl core::marker::StructuralPartialEq for charm::ScreenshotOptions
 pub struct charm::Session
 impl charm::Session
+pub fn charm::Session::active_page(&self) -> &charm::PageId
+pub async fn charm::Session::close_page(&mut self, id: &charm::PageId) -> core::result::Result<(), charm::Error>
+pub async fn charm::Session::new_page(&mut self, url: core::option::Option<&str>) -> core::result::Result<charm::PageId, charm::Error>
+pub async fn charm::Session::pages(&mut self) -> core::result::Result<alloc::vec::Vec<charm::PageInfo>, charm::Error>
+pub async fn charm::Session::select_page(&mut self, id: &charm::PageId) -> core::result::Result<(), charm::Error>
+pub async fn charm::Session::wait_for_page(&mut self) -> core::result::Result<charm::PageId, charm::Error>
 pub async fn charm::Session::add_cookies(&mut self, cookies: alloc::vec::Vec<charm::Cookie>) -> core::result::Result<(), charm::Error>
 pub async fn charm::Session::clear_cookies(&mut self) -> core::result::Result<(), charm::Error>
 pub async fn charm::Session::cookie_named(&mut self, name: &str) -> core::result::Result<core::option::Option<charm::Cookie>, charm::Error>
@@ -573,6 +874,7 @@ pub async fn charm::Session::url(&mut self) -> core::result::Result<alloc::strin
 pub async fn charm::Session::block_urls(&mut self, urls: &[alloc::string::String]) -> core::result::Result<(), charm::Error>
 pub async fn charm::Session::browser_send(&mut self, method: &str, params: serde_json::value::Value) -> core::result::Result<serde_json::value::Value, charm::Error>
 pub async fn charm::Session::close(self) -> core::result::Result<(), charm::Error>
+pub async fn charm::Session::connect(endpoint: charm::Endpoint, timing: charm::Timing) -> core::result::Result<Self, charm::Error>
 pub fn charm::Session::dropped_events(&self) -> u64
 pub async fn charm::Session::evaluate(&mut self, expression: &str) -> core::result::Result<serde_json::value::Value, charm::Error>
 pub fn charm::Session::exited(&mut self) -> bool
@@ -582,6 +884,26 @@ pub fn charm::Session::reply_failures(&self) -> u64
 pub async fn charm::Session::send(&mut self, method: &str, params: serde_json::value::Value) -> core::result::Result<serde_json::value::Value, charm::Error>
 pub fn charm::Session::sent(&self) -> &alloc::collections::btree::set::BTreeSet<alloc::string::String>
 pub async fn charm::Session::take_events(&mut self) -> core::result::Result<alloc::vec::Vec<serde_json::value::Value>, charm::Error>
+pub async fn charm::Session::check(&mut self, selector: impl core::convert::Into<charm::Selector>) -> core::result::Result<(), charm::Error>
+pub async fn charm::Session::dblclick(&mut self, selector: impl core::convert::Into<charm::Selector>) -> core::result::Result<(), charm::Error>
+pub async fn charm::Session::drag_and_drop(&mut self, source: impl core::convert::Into<charm::Selector>, target: impl core::convert::Into<charm::Selector>) -> core::result::Result<(), charm::Error>
+pub async fn charm::Session::focus(&mut self, selector: impl core::convert::Into<charm::Selector>) -> core::result::Result<(), charm::Error>
+pub async fn charm::Session::select_option(&mut self, selector: impl core::convert::Into<charm::Selector>, by: charm::SelectBy) -> core::result::Result<alloc::vec::Vec<alloc::string::String>, charm::Error>
+pub async fn charm::Session::set_input_files(&mut self, selector: impl core::convert::Into<charm::Selector>, files: alloc::vec::Vec<std::path::PathBuf>) -> core::result::Result<(), charm::Error>
+pub async fn charm::Session::uncheck(&mut self, selector: impl core::convert::Into<charm::Selector>) -> core::result::Result<(), charm::Error>
+pub async fn charm::Session::clear_viewport(&mut self) -> core::result::Result<(), charm::Error>
+pub async fn charm::Session::emulate(&mut self, device: charm::Device) -> core::result::Result<(), charm::Error>
+pub async fn charm::Session::pdf(&mut self, options: charm::PdfOptions) -> core::result::Result<alloc::vec::Vec<u8>, charm::Error>
+pub async fn charm::Session::set_color_scheme(&mut self, scheme: charm::ColorScheme) -> core::result::Result<(), charm::Error>
+pub async fn charm::Session::set_extra_headers(&mut self, headers: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> core::result::Result<(), charm::Error>
+pub async fn charm::Session::set_geolocation(&mut self, location: core::option::Option<charm::Geolocation>) -> core::result::Result<(), charm::Error>
+pub async fn charm::Session::set_javascript_enabled(&mut self, enabled: bool) -> core::result::Result<(), charm::Error>
+pub async fn charm::Session::set_locale(&mut self, locale: &str) -> core::result::Result<(), charm::Error>
+pub async fn charm::Session::set_offline(&mut self, offline: bool) -> core::result::Result<(), charm::Error>
+pub async fn charm::Session::set_throttle(&mut self, throttle: charm::Throttle) -> core::result::Result<(), charm::Error>
+pub async fn charm::Session::set_timezone(&mut self, timezone: &str) -> core::result::Result<(), charm::Error>
+pub async fn charm::Session::set_user_agent(&mut self, user_agent: &str) -> core::result::Result<(), charm::Error>
+pub async fn charm::Session::set_viewport(&mut self, viewport: charm::Viewport) -> core::result::Result<(), charm::Error>
 pub async fn charm::Session::click(&mut self, selector: impl core::convert::Into<charm::Selector>) -> core::result::Result<(), charm::Error>
 pub async fn charm::Session::fill(&mut self, selector: impl core::convert::Into<charm::Selector>, text: &str) -> core::result::Result<(), charm::Error>
 pub fn charm::Session::get_by_label(&mut self, text: &str, exact: bool) -> charm::Locator<'_>
@@ -592,19 +914,67 @@ pub async fn charm::Session::hover(&mut self, selector: impl core::convert::Into
 pub fn charm::Session::locator(&mut self, selector: impl core::convert::Into<charm::Selector>) -> charm::Locator<'_>
 pub async fn charm::Session::type_text(&mut self, selector: impl core::convert::Into<charm::Selector>, text: &str) -> core::result::Result<(), charm::Error>
 pub async fn charm::Session::wait_for_selector(&mut self, selector: impl core::convert::Into<charm::Selector>) -> core::result::Result<(), charm::Error>
-pub fn charm::Session::frame_locator(&mut self, selector: impl core::convert::Into<charm::Selector>) -> charm::FrameLocator<'_>
-pub async fn charm::Session::frames(&mut self) -> core::result::Result<alloc::vec::Vec<charm::FrameInfo>, charm::Error>
+pub async fn charm::Session::click_at(&mut self, x: f64, y: f64, options: charm::ClickOptions) -> core::result::Result<(), charm::Error>
 pub async fn charm::Session::mouse_click(&mut self, x: f64, y: f64, button: charm::MouseButton) -> core::result::Result<(), charm::Error>
 pub async fn charm::Session::mouse_move(&mut self, x: f64, y: f64) -> core::result::Result<(), charm::Error>
 pub async fn charm::Session::press(&mut self, combo: &str) -> core::result::Result<(), charm::Error>
 pub async fn charm::Session::scroll(&mut self, delta_y: f64) -> core::result::Result<(), charm::Error>
 pub async fn charm::Session::wheel(&mut self, delta_x: f64, delta_y: f64) -> core::result::Result<(), charm::Error>
+pub fn charm::Session::console(&mut self) -> alloc::vec::Vec<charm::ConsoleMessage>
+pub fn charm::Session::dialogs(&mut self) -> alloc::vec::Vec<charm::Dialog>
+pub fn charm::Session::dropped_records(&mut self) -> u64
+pub async fn charm::Session::set_events(&mut self, events: charm::Events, policy: charm::DialogPolicy) -> core::result::Result<(), charm::Error>
+pub fn charm::Session::frame_locator(&mut self, selector: impl core::convert::Into<charm::Selector>) -> charm::FrameLocator<'_>
+pub async fn charm::Session::frames(&mut self) -> core::result::Result<alloc::vec::Vec<charm::FrameInfo>, charm::Error>
 pub async fn charm::Session::route(&mut self, url: charm::UrlMatch, action: charm::RouteAction) -> core::result::Result<(), charm::Error>
 pub async fn charm::Session::unroute(&mut self, url: charm::UrlMatch) -> core::result::Result<(), charm::Error>
+pub fn charm::Session::set_human_input(&mut self, cursor: core::option::Option<charm::human::CursorOptions>)
+pub async fn charm::Session::snapshot(&mut self, options: charm::SnapshotOptions) -> core::result::Result<charm::Snapshot, charm::Error>
+pub async fn charm::Session::text(&mut self, format: charm::TextFormat, max_chars: usize) -> core::result::Result<alloc::string::String, charm::Error>
 pub async fn charm::Session::wait_for_function(&mut self, expression: &str) -> core::result::Result<serde_json::value::Value, charm::Error>
 pub async fn charm::Session::wait_for_load_state(&mut self, state: charm::LoadState) -> core::result::Result<(), charm::Error>
 pub async fn charm::Session::wait_for_timeout(&mut self, duration: core::time::Duration)
 impl core::ops::drop::Drop for charm::Session
+pub struct charm::Snapshot
+impl charm::Snapshot
+pub fn charm::Snapshot::nodes(&self) -> &[charm::SnapshotNode]
+pub fn charm::Snapshot::text(&self) -> alloc::string::String
+pub fn charm::Snapshot::truncated(&self) -> bool
+impl core::clone::Clone for charm::Snapshot
+impl core::cmp::Eq for charm::Snapshot
+impl core::cmp::PartialEq for charm::Snapshot
+impl core::fmt::Debug for charm::Snapshot
+impl core::marker::StructuralPartialEq for charm::Snapshot
+#[non_exhaustive] pub struct charm::SnapshotNode
+pub charm::SnapshotNode::checked: core::option::Option<charm::Checked>
+pub charm::SnapshotNode::depth: usize
+pub charm::SnapshotNode::disabled: bool
+pub charm::SnapshotNode::expanded: core::option::Option<bool>
+pub charm::SnapshotNode::level: core::option::Option<u64>
+pub charm::SnapshotNode::name: alloc::string::String
+pub charm::SnapshotNode::node_ref: core::option::Option<charm::NodeRef>
+pub charm::SnapshotNode::role: alloc::string::String
+pub charm::SnapshotNode::selected: bool
+pub charm::SnapshotNode::url: core::option::Option<alloc::string::String>
+pub charm::SnapshotNode::value: core::option::Option<alloc::string::String>
+impl core::clone::Clone for charm::SnapshotNode
+impl core::cmp::Eq for charm::SnapshotNode
+impl core::cmp::PartialEq for charm::SnapshotNode
+impl core::default::Default for charm::SnapshotNode
+impl core::fmt::Debug for charm::SnapshotNode
+impl core::fmt::Display for charm::SnapshotNode
+impl core::marker::StructuralPartialEq for charm::SnapshotNode
+pub struct charm::SnapshotOptions
+pub charm::SnapshotOptions::frames: bool
+pub charm::SnapshotOptions::interesting_only: bool
+pub charm::SnapshotOptions::max_nodes: usize
+impl core::clone::Clone for charm::SnapshotOptions
+impl core::cmp::Eq for charm::SnapshotOptions
+impl core::cmp::PartialEq for charm::SnapshotOptions
+impl core::default::Default for charm::SnapshotOptions
+impl core::fmt::Debug for charm::SnapshotOptions
+impl core::marker::Copy for charm::SnapshotOptions
+impl core::marker::StructuralPartialEq for charm::SnapshotOptions
 pub struct charm::Timing
 pub charm::Timing::actionable: core::time::Duration
 pub charm::Timing::close: core::time::Duration
@@ -613,6 +983,7 @@ pub charm::Timing::connect: core::time::Duration
 pub charm::Timing::connect_poll: core::time::Duration
 pub charm::Timing::drain: core::time::Duration
 pub charm::Timing::navigate: core::time::Duration
+pub charm::Timing::network_idle: core::time::Duration
 pub charm::Timing::poll: core::time::Duration
 pub charm::Timing::settle: core::time::Duration
 pub charm::Timing::wait: core::time::Duration
@@ -623,6 +994,16 @@ impl core::default::Default for charm::Timing
 impl core::fmt::Debug for charm::Timing
 impl core::marker::Copy for charm::Timing
 impl core::marker::StructuralPartialEq for charm::Timing
+pub struct charm::Viewport
+pub charm::Viewport::device_scale_factor: f64
+pub charm::Viewport::height: u32
+pub charm::Viewport::mobile: bool
+pub charm::Viewport::width: u32
+impl core::clone::Clone for charm::Viewport
+impl core::cmp::PartialEq for charm::Viewport
+impl core::fmt::Debug for charm::Viewport
+impl core::marker::Copy for charm::Viewport
+impl core::marker::StructuralPartialEq for charm::Viewport
 pub const charm::FORBIDDEN_METHODS: &[&str]
 pub fn charm::expect<'l, 's>(locator: &'l mut charm::Locator<'s>) -> charm::LocatorExpect<'l, 's>
 pub fn charm::expect_page(session: &mut charm::Session) -> charm::PageExpect<'_>

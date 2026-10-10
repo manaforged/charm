@@ -1,3 +1,5 @@
+use crate::error::Error;
+use crate::session::{Session, World};
 use serde::Deserialize;
 
 pub(crate) const RESOLVER: &str = r##"(function(matchText){
@@ -163,5 +165,57 @@ impl Read<'_> {
             Self::Attached => "return !!e;".to_owned(),
         };
         format!("(()=>{{const e={element};{body}}})()")
+    }
+}
+
+pub(crate) const REGISTER_REF: &str = r"function(id,registry){var m=globalThis[registry]||(globalThis[registry]={});m[id]=this;return true;}";
+
+pub(crate) const READABLE: &str = r##"(function(md,max){
+  function cap(t){t=t.replace(/[ \t]+\n/g,'\n').replace(/\n{3,}/g,'\n\n').trim();return t.length>max?t.slice(0,max):t;}
+  if(!md)return cap((document.body&&document.body.innerText)||'');
+  var SKIP={SCRIPT:1,STYLE:1,NOSCRIPT:1,TEMPLATE:1,SVG:1,HEAD:1,INPUT:1,SELECT:1,TEXTAREA:1,BUTTON:1,IFRAME:1};
+  var BLOCK={P:1,DIV:1,SECTION:1,ARTICLE:1,HEADER:1,FOOTER:1,MAIN:1,NAV:1,ASIDE:1,FORM:1,FIGURE:1,FIGCAPTION:1,DL:1,DT:1,DD:1,FIELDSET:1,DETAILS:1,SUMMARY:1};
+  function hidden(e){var s=getComputedStyle(e);return s.display==='none'||s.visibility==='hidden';}
+  function flat(e){return kids(e,0).replace(/\s+/g,' ').trim();}
+  function kids(e,d){var o='';e.childNodes.forEach(function(c){o+=render(c,d);});return o;}
+  function list(e,d){var o='\n',i=0,pad='  '.repeat(d);Array.prototype.forEach.call(e.children,function(li){if(li.tagName!=='LI'||hidden(li))return;i++;o+=pad+(e.tagName==='OL'?i+'. ':'- ')+kids(li,d+1).replace(/\n{2,}/g,'\n').trim()+'\n';});return o+'\n';}
+  function table(e){var o='\n\n';Array.prototype.forEach.call(e.rows,function(r,i){var c=Array.prototype.map.call(r.cells,function(x){return flat(x).replace(/\|/g,'\\|');});o+='| '+c.join(' | ')+' |\n';if(i===0)o+='|'+c.map(function(){return ' --- ';}).join('|')+'|\n';});return o+'\n';}
+  function render(n,d){
+    if(n.nodeType===3)return n.textContent.replace(/\s+/g,' ');
+    if(n.nodeType!==1)return '';
+    var t=n.tagName;
+    if(SKIP[t]||hidden(n))return '';
+    var h=/^H([1-6])$/.exec(t);
+    if(h)return '\n\n'+'#'.repeat(+h[1])+' '+flat(n)+'\n\n';
+    if(t==='A'&&n.hasAttribute('href')){var a=flat(n);return a?'['+a+']('+n.href+')':'';}
+    if(t==='PRE')return '\n\n```\n'+n.innerText.replace(/\n$/,'')+'\n```\n\n';
+    if(t==='CODE')return '`'+n.textContent+'`';
+    if(t==='STRONG'||t==='B'){var b=flat(n);return b?'**'+b+'**':'';}
+    if(t==='EM'||t==='I'){var m=flat(n);return m?'_'+m+'_':'';}
+    if(t==='BR')return '\n';
+    if(t==='HR')return '\n\n---\n\n';
+    if(t==='IMG'){var alt=n.getAttribute('alt');return alt?'!['+alt+']('+n.src+')':'';}
+    if(t==='UL'||t==='OL')return list(n,d);
+    if(t==='TABLE')return table(n);
+    if(t==='BLOCKQUOTE')return '\n\n'+kids(n,d).trim().split('\n').map(function(l){return '> '+l;}).join('\n')+'\n\n';
+    if(BLOCK[t])return '\n\n'+kids(n,d)+'\n\n';
+    return kids(n,d);
+  }
+  return cap(document.body?render(document.body,0).split('\n').map(function(l){return l.replace(/ +$/,'').replace(/^ (?! )/,'');}).join('\n'):'');
+})"##;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum TextFormat {
+    Text,
+    Markdown,
+}
+
+impl Session {
+    pub async fn text(&mut self, format: TextFormat, max_chars: usize) -> Result<String, Error> {
+        let markdown = format == TextFormat::Markdown;
+        let expression = format!("({READABLE})({markdown},{max_chars})");
+        let value = self.evaluate_in(None, World::Isolated, &expression).await?;
+        Ok(serde_json::from_value(value)?)
     }
 }

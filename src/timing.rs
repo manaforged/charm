@@ -11,6 +11,7 @@ pub struct Timing {
     pub poll: Duration,
     pub wait: Duration,
     pub actionable: Duration,
+    pub network_idle: Duration,
     pub close: Duration,
 }
 
@@ -26,6 +27,7 @@ impl Default for Timing {
             poll: Duration::from_millis(120),
             wait: Duration::from_secs(30),
             actionable: Duration::from_millis(1000),
+            network_idle: Duration::from_millis(500),
             close: Duration::from_millis(1500),
         }
     }

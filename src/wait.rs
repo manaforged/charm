@@ -9,6 +9,7 @@ pub enum LoadState {
     #[default]
     Load,
     DomContentLoaded,
+    NetworkIdle,
 }
 
 impl LoadState {
@@ -16,6 +17,7 @@ impl LoadState {
         match self {
             Self::Load => "document.readyState === 'complete'",
             Self::DomContentLoaded => "document.readyState !== 'loading'",
+            Self::NetworkIdle => Self::Load.expression(),
         }
     }
 }
@@ -81,10 +83,21 @@ impl Session {
         state: LoadState,
         timeout: Duration,
     ) -> Result<(), Error> {
+        let started = Instant::now();
+        if state == LoadState::NetworkIdle {
+            self.network_on().await?;
+        }
         drop(
             self.poll_expression_in(None, World::Isolated, state.expression(), timeout)
                 .await?,
         );
+        if state == LoadState::NetworkIdle {
+            let timing = self.timing();
+            let left = timeout.saturating_sub(started.elapsed());
+            self.transport_mut()
+                .network_quiet(timing.network_idle, timing.poll, left)
+                .await?;
+        }
         Ok(())
     }
 

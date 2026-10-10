@@ -1,9 +1,13 @@
+mod forms;
 mod reads;
+mod refs;
 
-use crate::dom::{Actionable, BoundingBox, ClickResult, Read};
+pub use forms::SelectBy;
+
+use crate::dom::{Actionable, Blocker, BoundingBox, ClickResult, Read};
 use crate::error::Error;
 use crate::frames::Context;
-use crate::input::MouseButton;
+use crate::input::{ClickOptions, MouseButton};
 use crate::selector::{Selector, TextMatch};
 use crate::session::{Session, World};
 use serde::de::DeserializeOwned;
@@ -97,7 +101,10 @@ impl<'a> Locator<'a> {
         if let Some(context) = &self.context {
             return Ok(context.clone());
         }
-        let context = self.session.frame_context(&self.frames).await?;
+        let context = match self.bind_ref().await? {
+            Some(context) => context,
+            None => self.session.frame_context(&self.frames).await?,
+        };
         self.context = Some(context.clone());
         Ok(context)
     }
@@ -196,11 +203,32 @@ impl<'a> Locator<'a> {
         self.settle_within(timeout).await
     }
 
+    async fn await_frame_hit(&mut self, bounds: BoundingBox) -> Result<(), Error> {
+        let (x, y) = bounds.center();
+        let probe = format!(
+            "(()=>{{const e=document.elementFromPoint({x},{y});return !!e&&e.tagName==='IFRAME';}})()"
+        );
+        let timeout = self.session.timing().actionable;
+        match self
+            .session
+            .poll_expression_in(None, World::Isolated, &probe, timeout)
+            .await
+        {
+            Ok(_) | Err(Error::Timeout(_)) => Ok(()),
+            Err(error) => Err(error),
+        }
+    }
+
     async fn actionable_box(&mut self) -> Result<BoundingBox, Error> {
         let timeout = self.session.timing().wait;
         let verdict = self.settle_within(timeout).await?;
         match (verdict.ok, verdict.bounds) {
-            (true, Some(bounds)) => Ok(bounds),
+            (true, Some(bounds)) => {
+                if !self.frames.is_empty() {
+                    self.await_frame_hit(bounds).await?;
+                }
+                Ok(bounds)
+            }
             _ => Err(Error::NotActionable {
                 reason: verdict.reason,
                 covered_by: verdict.covered_by,
@@ -210,8 +238,37 @@ impl<'a> Locator<'a> {
     }
 
     pub async fn click(&mut self) -> Result<(), Error> {
-        let (x, y) = self.actionable_box().await?.center();
-        self.session.mouse_click(x, y, MouseButton::Left).await
+        self.click_checked(ClickOptions::default()).await
+    }
+
+    pub(crate) async fn click_checked(&mut self, options: ClickOptions) -> Result<(), Error> {
+        let deadline = tokio::time::Instant::now() + self.session.timing().wait;
+        loop {
+            let bounds = self.actionable_box().await?;
+            let (x, y) = options.position.map_or_else(
+                || bounds.center(),
+                |(dx, dy)| (bounds.x + dx, bounds.y + dy),
+            );
+            let arm = format!(
+                "(el=>{{globalThis.__charmHit=false;window.addEventListener('pointerdown',e=>{{globalThis.__charmHit=!!el&&(el===e.target||el.contains(e.target));}},{{capture:true,once:true}});return true;}})({})",
+                self.element_expr()
+            );
+            drop(self.eval::<serde_json::Value>(&arm).await?);
+            self.session.click_at(x, y, options).await?;
+            if self.eval::<bool>("globalThis.__charmHit===true").await? {
+                return Ok(());
+            }
+            if tokio::time::Instant::now() >= deadline {
+                return Err(Error::NotActionable {
+                    reason: Some(Blocker::Obscured),
+                    covered_by: None,
+                    selector: self.selector.clone(),
+                });
+            }
+            self.context = None;
+            let pause = self.session.timing().poll;
+            self.session.idle(pause).await?;
+        }
     }
 
     pub async fn try_click(&mut self) -> Result<ClickResult, Error> {

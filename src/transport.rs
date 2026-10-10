@@ -1,3 +1,4 @@
+use crate::events::Observer;
 #[cfg(test)]
 use crate::intercept::matches_url;
 use crate::intercept::{Intercept, Verdict};
@@ -50,6 +51,7 @@ pub(crate) struct Transport {
     pending: BTreeMap<u64, &'static str>,
     fetch: Option<(u64, Value)>,
     held: VecDeque<Value>,
+    pub(crate) observer: Observer,
 }
 
 impl Transport {
@@ -66,6 +68,7 @@ impl Transport {
             pending: BTreeMap::new(),
             fetch: None,
             held: VecDeque::new(),
+            observer: Observer::new(),
         }
     }
 
@@ -211,6 +214,11 @@ impl Transport {
     }
 
     async fn event(&mut self, msg: Value) -> Result<(), Error> {
+        if let Some(reply) = self.observer.observe(&msg) {
+            let session = msg.get("sessionId").and_then(Value::as_str);
+            self.post("Page.handleJavaScriptDialog", reply, session)
+                .await?;
+        }
         if !self.answer(&msg).await? {
             self.queued(msg);
         }
@@ -250,7 +258,12 @@ impl Transport {
         mut params: Value,
         session_id: Option<&str>,
     ) -> Result<Value, Error> {
-        if let Some(name) = blocked(method).or_else(|| unflattened(method, &params)) {
+        if let Some(name) = self
+            .observer
+            .events
+            .refused(method)
+            .or_else(|| unflattened(method, &params))
+        {
             return Err(Error::Blocked(name));
         }
         let configuring = matches!(method, "Fetch.enable" | "Fetch.disable")
