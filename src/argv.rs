@@ -254,7 +254,8 @@ async fn lock_held(lock: &Path) -> std::io::Result<bool> {
     }
 }
 
-pub(crate) fn lock_pid(target: &str) -> Option<u32> {
+#[cfg(not(windows))]
+fn lock_pid(target: &str) -> Option<u32> {
     target
         .rsplit_once('-')?
         .1
