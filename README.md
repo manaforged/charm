@@ -103,19 +103,6 @@ Without those subscriptions, charm reads page state by evaluating expressions an
 - [The no-subscription design](docs/guide/no-subscription.md)
 - [AGENTS.md](AGENTS.md): the API by job, for coding agents
 
-## API
-
-<!-- truesight:surface -->
-
-751 public items (81 types, 6 functions, 207 methods, 292 fields, 159 variants, 6 constants) at 751 paths; 0 are re-export aliases. 461 trait impl lines, 23 inherent impl lines. 2 modules, 0 re-export only.
-
-| Module | Items | Types | Functions | Methods | Aliases |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| `charm` | 621 | 70 | 3 | 196 | 0 |
-| `charm::human` | 130 | 11 | 3 | 11 | 0 |
-
-<!-- /truesight -->
-
 ## License
 
 MIT. See [LICENSE](LICENSE).
