@@ -334,6 +334,7 @@
 | --- | --- |
 | <code>arg(self, arg: impl Into&lt;String&gt;) -&gt; Self</code> |  |
 | <code>args(&amp;self, user_data_dir: &amp;Path) -&gt; Vec&lt;String&gt;</code> |  |
+| <code>detached(self) -&gt; Self</code> |  |
 | <code>dialogs(self, policy: <a href="#dialogpolicy">DialogPolicy</a>) -&gt; Self</code> |  |
 | <code>events(self, events: <a href="#events">Events</a>) -&gt; Self</code> |  |
 | <code>headed(self) -&gt; Self</code> |  |

@@ -1,8 +1,8 @@
 mod support;
 
 use charm::{
-    Cookie, Error, ErrorReason, FORBIDDEN_METHODS, RouteAction, ScreenshotOptions, Selector,
-    Session, TextMatch, UrlMatch, expect,
+    Cookie, Endpoint, Error, ErrorReason, FORBIDDEN_METHODS, RouteAction, ScreenshotOptions,
+    Selector, Session, TextMatch, Timing, UrlMatch, expect,
 };
 use std::collections::BTreeMap;
 use std::time::Duration;
@@ -260,4 +260,49 @@ async fn a_profile_relaunches_right_after_a_dropped_session() {
     second.goto(&url).await.expect("goto again");
     assert_eq!(second.title().await.expect("title"), "start");
     second.close().await.expect("close");
+}
+
+#[tokio::test]
+#[ignore = "launches the installed Chrome"]
+async fn a_detached_session_survives_the_drop_and_reattaches() {
+    let port = support::serve().await;
+    let url = format!("http://127.0.0.1:{port}/start");
+    let profile = tempfile::tempdir().expect("profile");
+    let launch = support::base(Duration::from_secs(30))
+        .profile(profile.path())
+        .detached();
+    let mut session = Session::launch(launch).await.expect("launch");
+    session.goto(&url).await.expect("goto");
+    assert_eq!(session.title().await.expect("title"), "start");
+    let file = profile.path().join("DevToolsActivePort");
+    let body = std::fs::read_to_string(&file).expect("devtools port");
+    let port = body
+        .lines()
+        .next()
+        .unwrap()
+        .trim()
+        .parse::<u16>()
+        .expect("port");
+    drop(session);
+    let mut again = Session::connect(Endpoint::Port(port), Timing::default())
+        .await
+        .expect("reattach to the detached Chrome");
+    assert_eq!(again.title().await.expect("title"), "start");
+    drop(
+        again
+            .browser_send("Browser.close", serde_json::json!({}))
+            .await,
+    );
+    let mut gone = false;
+    for _ in 0..50 {
+        if Session::connect(Endpoint::Port(port), Timing::default())
+            .await
+            .is_err()
+        {
+            gone = true;
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    assert!(gone, "the detached Chrome outlived its close");
 }
