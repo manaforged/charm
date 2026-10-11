@@ -1,6 +1,6 @@
 # charm-cdp
 
-**Browser automation over the Chrome DevTools Protocol, built in Rust for tests and agents.**
+**Browser automation over CDP, built in Rust.**
 
 - **It waits for you.** Locators wait until an element is visible, stable, and clickable, and assertions retry. Frames, tabs, request routing, response bodies, downloads, PDF, and saved logins.
 - **Nothing else to install.** No Node runtime and no browser download. charm drives the Chrome, Edge, or Brave on the machine, or attaches to one that is running.
