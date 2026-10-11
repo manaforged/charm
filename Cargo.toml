@@ -1,6 +1,8 @@
 [package]
 name = "charm-cdp"
-description = "Plain Chrome DevTools Protocol driver for the installed Chrome"
+description = "Playwright-style browser automation for Rust, built directly on the Chrome DevTools Protocol"
+keywords = ["browser", "automation", "cdp", "chrome", "playwright"]
+categories = ["web-programming", "development-tools::testing"]
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.96"

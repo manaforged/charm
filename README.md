@@ -1,8 +1,8 @@
 # charm-cdp
 
-charm-cdp is a Rust library that drives the Chrome you already have installed over the Chrome DevTools Protocol (CDP). You get locators, auto-waiting clicks and fills, retrying assertions, frames, tabs, request routing, response bodies, saved logins, downloads, and accessibility snapshots for agents, with no bundled browser and no Node runtime.
+Playwright-style browser automation for Rust, built directly on the Chrome DevTools Protocol (CDP). Locators, auto-waiting clicks and fills, retrying assertions, frames, tabs, request routing, response bodies, saved logins, downloads, and accessibility snapshots for agents. It drives the Chrome, Edge, or Brave already on the machine, with no bundled browser and no Node runtime.
 
-Its transport does not send `Runtime.enable`, `Page.enable`, `Target.setAutoAttach`, or the other methods in `FORBIDDEN_METHODS`. It refuses them before they reach the socket, and you can check that from your own code. Dialogs and console messages need `Page.enable` or `Runtime.enable`, so they are an explicit opt-in.
+charm does not subscribe to page events unless you ask. Playwright and Puppeteer send `Runtime.enable` during normal operation; charm sends neither it nor `Page.enable` by default, reads the page by evaluating and polling instead, and lets your tests prove it. Console messages and dialogs need those events, so they are an opt-in.
 
 Status: unreleased. The API is not stable and will change before the first release. External pull requests are not accepted yet; open an [issue](https://github.com/manaforged/charm/issues) for bugs and requests.
 
@@ -66,7 +66,7 @@ println!("{}", outcome.snapshot.unwrap_or_default());
 
 A snapshot line looks like `- button "Sign in" [ref=e5]`. A ref also works as a selector: `session.click(Selector::parse("ref=e5"))`. If the element is gone, the call returns `Error::StaleRef`, and the model takes a new snapshot. [Agents](docs/guide/agents.md) has the full action format and the options that keep snapshots small.
 
-## The forbidden-methods guarantee
+## No event subscriptions by default
 
 `FORBIDDEN_METHODS` lists the methods charm does not send. `Session::send` and `Session::browser_send` return `Error::Blocked` for them, so your own raw CDP calls cannot send them by mistake either. `Session::sent()` returns the set of every method name the session has sent. Assert against it in your tests:
 
