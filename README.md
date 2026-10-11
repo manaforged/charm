@@ -1,12 +1,14 @@
 # charm-cdp
 
-**Browser automation over CDP, built in Rust.**
+Browser automation over the Chrome DevTools Protocol, written in Rust.
 
-- **It waits for you.** Locators wait until an element is visible, stable, and clickable, and assertions retry. Frames, tabs, request routing, response bodies, downloads, PDF, and saved logins.
-- **Nothing else to install.** No Node runtime and no browser download. charm drives the Chrome, Edge, or Brave on the machine, or attaches to one that is running.
-- **Quiet by default.** charm never subscribes to runtime or page events (`Runtime.enable`, `Page.enable`) unless you ask, and your tests can prove it.
-- **Snapshots a model can act on.** The page goes in as an accessibility snapshot with element refs, the model answers with one JSON action, and charm reports what changed.
-- **No stray browsers.** A browser charm launches exits with your program, even when the program crashes.
+- **Waits for you**: locators wait until an element is visible, stable, and clickable, and assertions retry.
+- **No downloads**: no Node runtime and no bundled browser. It drives the Chrome, Edge, or Brave on the machine.
+- **Quiet**: it never turns on runtime or page events (`Runtime.enable`, `Page.enable`) unless you ask.
+- **Agent-ready**: accessibility snapshots with element refs, and a JSON action format for models.
+- **Cleans up**: a browser it launches exits with your program, even after a crash.
+
+[Getting started](docs/guide/getting-started.md) | [Guides](#guides) | [Examples](examples) | [API by job](AGENTS.md)
 
 Status: unreleased. The API is not stable and will change before the first release. External pull requests are not accepted yet; open an [issue](https://github.com/manaforged/charm/issues) for bugs and requests.
 
