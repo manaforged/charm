@@ -26,6 +26,7 @@ pub struct Launch {
     dialogs: DialogPolicy,
     extra: Vec<String>,
     storage: Option<StorageState>,
+    detached: bool,
 }
 
 impl Launch {
@@ -49,6 +50,7 @@ impl Launch {
             dialogs: DialogPolicy::default(),
             extra: Vec::new(),
             storage: None,
+            detached: false,
         }
     }
 
@@ -61,6 +63,12 @@ impl Launch {
     #[must_use]
     pub fn headed(mut self) -> Self {
         self.headless = false;
+        self
+    }
+
+    #[must_use]
+    pub fn detached(mut self) -> Self {
+        self.detached = true;
         self
     }
 
@@ -143,6 +151,10 @@ impl Launch {
         &self.start_url
     }
 
+    pub(crate) fn is_detached(&self) -> bool {
+        self.detached
+    }
+
     #[must_use]
     pub fn args(&self, user_data_dir: &Path) -> Vec<String> {
         let mut args = Vec::new();
@@ -188,6 +200,7 @@ impl fmt::Debug for Launch {
             .field("dialogs", &self.dialogs)
             .field("extra_args", &self.extra.len())
             .field("storage_state", &self.storage.is_some())
+            .field("detached", &self.detached)
             .finish()
     }
 }

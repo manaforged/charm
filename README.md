@@ -1,8 +1,14 @@
 # charm-cdp
 
-Playwright-style browser automation for Rust, built directly on the Chrome DevTools Protocol (CDP). Locators, auto-waiting clicks and fills, retrying assertions, frames, tabs, request routing, response bodies, saved logins, downloads, and accessibility snapshots for agents. It drives the Chrome, Edge, or Brave already on the machine, with no bundled browser and no Node runtime.
+Browser automation over the Chrome DevTools Protocol, written in Rust.
 
-charm does not subscribe to page events unless you ask. Playwright and Puppeteer send `Runtime.enable` during normal operation; charm sends neither it nor `Page.enable` by default, reads the page by evaluating and polling instead, and lets your tests prove it. Console messages and dialogs need those events, so they are an opt-in.
+- **Waits for you**: locators wait until an element is visible, stable, and clickable, and assertions retry.
+- **No downloads**: no Node runtime and no bundled browser. It drives the Chrome, Edge, or Brave on the machine.
+- **Quiet**: it never turns on runtime or page events (`Runtime.enable`, `Page.enable`) unless you ask.
+- **Agent-ready**: accessibility snapshots with element refs, and a JSON action format for models.
+- **Cleans up**: a browser it launches exits with your program, even after a crash.
+
+[Getting started](docs/guide/getting-started.md) | [Guides](#guides) | [Examples](examples) | [API by job](AGENTS.md)
 
 Status: unreleased. The API is not stable and will change before the first release. External pull requests are not accepted yet; open an [issue](https://github.com/manaforged/charm/issues) for bugs and requests.
 
@@ -27,7 +33,7 @@ Replace `<commit>` with the commit hash you tested against. The library name is 
 ## Usage
 
 ```rust
-use charm::{FORBIDDEN_METHODS, Launch, Session, expect};
+use charm::{Launch, Session, expect};
 
 #[tokio::main]
 async fn main() -> Result<(), charm::Error> {
@@ -39,10 +45,6 @@ async fn main() -> Result<(), charm::Error> {
     session.fill("#name", "Ada").await?;
     session.click("#go").await?;
     expect(&mut session.locator("#out")).to_have_text("hi Ada").await?;
-
-    for &method in FORBIDDEN_METHODS {
-        assert!(!session.sent().contains(method));
-    }
     session.close().await
 }
 ```
@@ -80,6 +82,8 @@ Without those subscriptions, charm reads page state by evaluating expressions an
 
 ## Limits
 
+- Chromium-based browsers only: Chrome, Chromium, Edge, Brave. No Firefox or WebKit.
+- No trace viewer, video recording, test runner, or code generator. Tests run under `cargo test`.
 - Dialogs, console messages, and the file chooser work only with the event opt-in.
 - There is one browser context per session. Tabs share cookies and storage.
 - Network events (`wait_for_request`, `wait_for_response`) start at `network_on()`. A request that finished before that call is not seen.

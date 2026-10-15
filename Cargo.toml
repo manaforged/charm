@@ -1,7 +1,7 @@
 [package]
 name = "charm-cdp"
-description = "Playwright-style browser automation for Rust, built directly on the Chrome DevTools Protocol"
-keywords = ["browser", "automation", "cdp", "chrome", "playwright"]
+description = "Browser automation over the Chrome DevTools Protocol, written in Rust"
+keywords = ["browser", "automation", "cdp", "chrome", "testing"]
 categories = ["web-programming", "development-tools::testing"]
 version = "0.1.0"
 edition = "2024"

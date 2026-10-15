@@ -24,12 +24,13 @@ pub struct Session {
 
 enum Owner {
     Owned(Box<Owned>),
+    Detached(Box<Owned>),
     Attached,
 }
 
 struct Owned {
     child: Child,
-    _job: crate::job::Job,
+    _job: Option<crate::job::Job>,
     _profile: Option<TempDir>,
     kept: Option<PathBuf>,
 }
@@ -38,7 +39,7 @@ pub(crate) use crate::world::World;
 
 struct Spawned {
     child: Child,
-    job: crate::job::Job,
+    job: Option<crate::job::Job>,
     stderr: StderrTail,
     user_data_dir: PathBuf,
     profile: Option<TempDir>,
@@ -54,7 +55,9 @@ impl Session {
         }
         clear_stale_port(&user_data_dir).await?;
         let mut child = spawn(&launch, &user_data_dir)?;
-        let job = crate::job::contain(&child)?;
+        let job = (!launch.is_detached())
+            .then(|| crate::job::contain(&child))
+            .transpose()?;
         let stderr = StderrTail::start(&mut child);
         let mut session = attach(Spawned {
             child,
@@ -187,7 +190,9 @@ impl Session {
 
     pub fn exited(&mut self) -> bool {
         match &mut self.owner {
-            Owner::Owned(owned) => matches!(owned.child.try_wait(), Ok(Some(_))),
+            Owner::Owned(owned) | Owner::Detached(owned) => {
+                matches!(owned.child.try_wait(), Ok(Some(_)))
+            }
             Owner::Attached => false,
         }
     }
@@ -209,10 +214,11 @@ impl Session {
     }
 
     pub async fn keep_cookies(&mut self) -> Result<(), Error> {
-        let Owner::Owned(owned) = &self.owner else {
-            return Ok(());
+        let kept = match &self.owner {
+            Owner::Owned(owned) | Owner::Detached(owned) => owned.kept.clone(),
+            Owner::Attached => None,
         };
-        let Some(dir) = owned.kept.clone() else {
+        let Some(dir) = kept else {
             return Ok(());
         };
         let cookies = self.cookies().await?;
@@ -225,15 +231,21 @@ impl Session {
 
     pub async fn close(mut self) -> Result<(), Error> {
         self.keep_cookies().await?;
-        if let Owner::Owned(owned) = &mut self.owner {
-            drop(self.transport.send("Browser.close", json!({}), None).await);
-            self.transport.close().await;
-            drop(owned.child.stdin.take());
-            drop(tokio::time::timeout(self.timing.close, owned.child.wait()).await);
-            drop(owned.child.kill().await);
-            drop(owned.child.wait().await);
-        } else {
-            self.transport.close().await;
+        match &mut self.owner {
+            Owner::Owned(owned) => {
+                drop(self.transport.send("Browser.close", json!({}), None).await);
+                self.transport.close().await;
+                drop(owned.child.stdin.take());
+                drop(tokio::time::timeout(self.timing.close, owned.child.wait()).await);
+                drop(owned.child.kill().await);
+                drop(owned.child.wait().await);
+            }
+            Owner::Detached(owned) => {
+                drop(self.transport.send("Browser.close", json!({}), None).await);
+                self.transport.close().await;
+                drop(tokio::time::timeout(self.timing.close, owned.child.wait()).await);
+            }
+            Owner::Attached => self.transport.close().await,
         }
         Ok(())
     }
@@ -255,6 +267,13 @@ const GUARD: &str = r#"exe="$1"; shift; exec 3<&0; "$exe" "$@" </dev/null 3<&- &
 
 #[cfg(unix)]
 fn command(launch: &Launch, user_data_dir: &Path) -> Command {
+    if launch.is_detached() {
+        let mut command = Command::new(launch.exe());
+        command
+            .args(launch.args(user_data_dir))
+            .stdin(Stdio::null());
+        return command;
+    }
     let mut command = Command::new("/bin/sh");
     command
         .arg("-c")
@@ -271,8 +290,10 @@ fn command(launch: &Launch, user_data_dir: &Path) -> Command {
     let mut command = Command::new(launch.exe());
     command
         .args(launch.args(user_data_dir))
-        .stdin(Stdio::null())
-        .kill_on_drop(true);
+        .stdin(Stdio::null());
+    if !launch.is_detached() {
+        command.kill_on_drop(true);
+    }
     command
 }
 
@@ -310,17 +331,27 @@ async fn attach(spawned: Spawned) -> Result<Session, Error> {
         timing,
     } = spawned;
     match handshake(&user_data_dir, timing, &mut child, stderr).await {
-        Ok((transport, tabs)) => Ok(Session {
-            transport,
-            tabs,
-            owner: Owner::Owned(Box::new(Owned {
+        Ok((transport, tabs)) => {
+            let detached = job.is_none();
+            let kept = profile.is_none().then(|| user_data_dir.clone());
+            let owned = Box::new(Owned {
                 child,
                 _job: job,
-                kept: profile.is_none().then(|| user_data_dir.clone()),
+                kept,
                 _profile: profile,
-            })),
-            timing,
-        }),
+            });
+            let owner = if detached {
+                Owner::Detached(owned)
+            } else {
+                Owner::Owned(owned)
+            };
+            Ok(Session {
+                transport,
+                tabs,
+                owner,
+                timing,
+            })
+        }
         Err(error) => {
             release(&mut child);
             drop(tokio::time::timeout(timing.close, child.wait()).await);
@@ -382,7 +413,6 @@ impl Drop for Session {
         }
     }
 }
-
 #[cfg(test)]
 #[path = "session_tests.rs"]
 mod tests;

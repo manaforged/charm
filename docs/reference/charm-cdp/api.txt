@@ -809,6 +809,7 @@ pub struct charm::Launch
 impl charm::Launch
 pub fn charm::Launch::arg(self, arg: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn charm::Launch::args(&self, user_data_dir: &std::path::Path) -> alloc::vec::Vec<alloc::string::String>
+pub fn charm::Launch::detached(self) -> Self
 pub fn charm::Launch::dialogs(self, policy: charm::DialogPolicy) -> Self
 pub fn charm::Launch::events(self, events: charm::Events) -> Self
 pub fn charm::Launch::headed(self) -> Self
