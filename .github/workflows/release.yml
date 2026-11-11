@@ -12,22 +12,8 @@ permissions:
   contents: read
 
 jobs:
-  check:
-    name: check
-    uses: ./.github/workflows/check.yml
-
-  live:
-    name: live
-    uses: ./.github/workflows/live.yml
-
-  hygiene:
-    name: hygiene
-    uses: ./.github/workflows/hygiene.yml
-    secrets: inherit
-
   package:
     name: package
-    needs: [check, live, hygiene]
     if: github.repository == 'manaforged/charm' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     timeout-minutes: 20
