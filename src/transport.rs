@@ -6,6 +6,7 @@ use crate::route::Route;
 use crate::{Error, Timing};
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{Value, json};
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use tokio::net::TcpStream;
 use tokio::time::{Instant, timeout_at};
@@ -15,6 +16,48 @@ use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 const MAX_PENDING: usize = 1024;
 const MAX_EVENTS: usize = 4096;
 const GONE_REQUEST: i64 = -32602;
+
+/// Rewrites unpaired `\uD8xx`/`\uDCxx` escapes to `\ufffd`, which Chrome emits for JS strings holding lone surrogates.
+pub(crate) fn repair_lone_surrogate_escapes(text: &str) -> Cow<'_, str> {
+    let mut out = String::new();
+    let mut rest = text;
+    let mut changed = false;
+    while let Some(i) = rest.find("\\u") {
+        let Some(hex) = rest
+            .get(i + 2..i + 6)
+            .filter(|h| h.bytes().all(|b| b.is_ascii_hexdigit()))
+        else {
+            out.push_str(&rest[..i + 2]);
+            rest = &rest[i + 2..];
+            continue;
+        };
+        let value = u32::from_str_radix(hex, 16).unwrap_or(0);
+        let lead = (0xD800..=0xDBFF).contains(&value);
+        let paired = lead
+            && matches!(rest.get(i + 6..i + 8), Some("\\u"))
+            && rest
+                .get(i + 8..i + 12)
+                .and_then(|h| u32::from_str_radix(h, 16).ok())
+                .is_some_and(|v| (0xDC00..=0xDFFF).contains(&v));
+        if paired {
+            out.push_str(&rest[..i + 12]);
+            rest = &rest[i + 12..];
+        } else if lead || (0xDC00..=0xDFFF).contains(&value) {
+            out.push_str(&rest[..i]);
+            out.push_str("\\ufffd");
+            rest = &rest[i + 6..];
+            changed = true;
+        } else {
+            out.push_str(&rest[..i + 6]);
+            rest = &rest[i + 6..];
+        }
+    }
+    if !changed {
+        return Cow::Borrowed(text);
+    }
+    out.push_str(rest);
+    Cow::Owned(out)
+}
 
 pub const FORBIDDEN_METHODS: &[&str] = &[
     "Runtime.enable",
@@ -307,7 +350,7 @@ impl Transport {
             let frame = self.ws.next().await.ok_or_else(closed)??;
             match frame {
                 Message::Text(text) => {
-                    let msg: Value = serde_json::from_str(&text)?;
+                    let msg: Value = serde_json::from_str(&repair_lone_surrogate_escapes(&text))?;
                     if let Some(got) = msg.get("id").and_then(Value::as_u64) {
                         self.acknowledged(&msg).await?;
                         if got == id {
@@ -349,7 +392,7 @@ impl Transport {
             };
             match frame {
                 Message::Text(text) => {
-                    let msg: Value = serde_json::from_str(&text)?;
+                    let msg: Value = serde_json::from_str(&repair_lone_surrogate_escapes(&text))?;
                     if msg.get("id").and_then(Value::as_u64).is_some() {
                         self.acknowledged(&msg).await?;
                     } else {
