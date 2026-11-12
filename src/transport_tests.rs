@@ -1,4 +1,4 @@
-use super::{Transport, blocked, matches_url};
+use super::{Transport, blocked, matches_url, repair_lone_surrogate_escapes};
 use crate::intercept::{ReplyKind, auth_reply};
 use crate::{Error, FORBIDDEN_METHODS, Timing};
 use futures_util::{SinkExt, StreamExt};
@@ -313,4 +313,58 @@ async fn a_failed_reply_ack_is_counted_not_raised_on_the_next_call() {
     );
     answered.expect("the unrelated call succeeds");
     assert_eq!(transport.reply_failures(), 1);
+}
+
+#[test]
+fn unpaired_surrogate_escapes_are_rewritten() {
+    assert_eq!(
+        repair_lone_surrogate_escapes(r#"{"v":"\ud83d"}"#),
+        r#"{"v":"\ufffd"}"#
+    );
+    assert_eq!(
+        repair_lone_surrogate_escapes(r#"{"v":"\udc00"}"#),
+        r#"{"v":"\ufffd"}"#
+    );
+}
+
+#[test]
+fn paired_surrogates_and_plain_text_are_untouched() {
+    for untouched in [
+        r#"{"v":"\ud83d\ude00"}"#,
+        r#"{"v":"\u00e9"}"#,
+        r#"{"v":"\\u not an escape"}"#,
+        r#"{"v":"\ud8"#,
+    ] {
+        assert!(
+            matches!(
+                repair_lone_surrogate_escapes(untouched),
+                std::borrow::Cow::Borrowed(_)
+            ),
+            "{untouched}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn a_frame_carrying_a_lone_surrogate_decodes() {
+    let (mut transport, mut server) = connection().await;
+    let reply = async {
+        let command = receive(&mut server).await;
+        let frame = format!(
+            "{{\"id\":{},\"result\":{{\"value\":\"\\ud83d\"}}}}",
+            command["id"]
+        );
+        server
+            .send(Message::Text(frame.into()))
+            .await
+            .expect("write CDP");
+    };
+    let (result, ()) = tokio::join!(
+        transport.send("Runtime.evaluate", json!({"expression": "1"}), None),
+        reply
+    );
+    assert_eq!(
+        result.expect("a lone surrogate must not fail the frame")["value"],
+        "\u{fffd}"
+    );
 }
